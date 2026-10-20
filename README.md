@@ -10,13 +10,18 @@ Played with bare hands (hand tracking). Controllers work as a fallback: trigger 
 ## How it plays
 
 1. **A crossword floats in front of you.** Dark glass tiles with hairline frames; the grid draws itself.
-2. **The pieces stand on a black marble tray that curves round you.** Each is a small chess piece with something carved on top, and each one is one word. A crown is KING. A bone is DOG. A snail is SLOW.
+2. **The pieces stand on a black marble tray that curves round you.** Each is a small chess piece with something carved on top, and each one is one word. A crown is KING. A bone is DOG. A snail is SLOW. A frog in a crown is PRINCE.
 3. **Pinch a piece to pick it up.** Turn it in your fingers to look at it.
 4. **Point it at its word and let go** (or throw it). The word you are aiming at lights gold and a dotted arc shows where the piece will fly.
-5. **Right:** the piece flashes green and pours itself into the grid, every Gaussian flying to a letter, and the word appears. **Wrong:** it flashes red, shakes its head, and flies back to its place. Three misses on one piece pencil in its first letter.
+5. **Right:** the piece flashes green and pours itself into the grid, every Gaussian flying to a letter, and the word appears. **Wrong:** it flashes red, shakes its head, and flies back to its place. Three misses on one piece pencil in one of its letters.
 6. **Checkmate.** When every word is in, the grid shimmers, you get your time and misses, and the next puzzle draws itself.
 
-Five set puzzles, named for the phases of a chess game, use all 25 pieces once, from literal (crown → KING) through associations (horseshoe → LUCK, umbrella → RAIN) to the sly ones (nose → SMELL, crystals → COLD, padlock → SAFE). After that come encores: random handfuls of pieces laid out as a new crossword each time. Progress is saved in the browser.
+Fifteen set puzzles, named for a game of chess (Opening to Grandmaster), use all 75 pieces once, from literal (crown → KING, rainbow → RAINBOW) through associations (horseshoe → LUCK, torii → JAPAN, alarm clock → MORNING) to the sly ones (nose → SMELL, donut → ZERO, sheep → SLEEP, penguin → TUXEDO, butterfly → CHANGE). After that come encores: random handfuls of pieces laid out as a new crossword each time. Progress is saved in the browser.
+
+Two rules keep it from turning into guesswork:
+
+- **Word lengths are mixed.** No puzzle has more than two words of the same length, so the shape of the grid is itself a clue. Encores follow the same rule.
+- **Later puzzles start with letters printed in.** None in puzzles I to III, one in IV to VIII, two from IX on (and in encores), always in the slyest, longest words.
 
 ## How it is made
 

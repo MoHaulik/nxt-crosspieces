@@ -368,6 +368,420 @@ const MODELS = {
   ]; } },
 };
 
+// ── more helpers for the second set ──
+const tint = (r, g, b) => () => set(r, g, b); // a part in its material, recoloured: red lacquer, yellow porcelain, green stems
+let QX = 0, QY = 0; const rot = (x, y, a) => { const c = cos(a), s = sin(a); QX = c * x - s * y; QY = s * x + c * y; };
+function tube(pts) { // a bent tube through [x, y, z, radius] points, tapering segment by segment
+  let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9, z0 = 1e9, z1 = -1e9;
+  for (const [x, y, z, r] of pts) { x0 = min(x0, x - r); x1 = max(x1, x + r); y0 = min(y0, y - r); y1 = max(y1, y + r); z0 = min(z0, z - r); z1 = max(z1, z + r); }
+  return (x, y, z) => {
+    const bd = L3(max(x0 - x, x - x1, 0), max(y0 - y, y - y1, 0), max(z0 - z, z - z1, 0)); if (bd > .3) return bd;
+    let d = 1e9; for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1]; d = min(d, rcone(x, y, z, a[0], a[1], a[2], b[0], b[1], b[2], a[3], b[3])); } return d;
+  };
+}
+function pyr(x, y, z, s, h) { // a square pyramid: base side s on y = 0, apex at y = h
+  x /= s; y /= s; z /= s; h /= s; const m2 = h * h + .25; x = abs(x); z = abs(z); if (z > x) { const t = x; x = z; z = t; } x -= .5; z -= .5;
+  const qx = z, qy = h * y - .5 * x, qz = h * x + .5 * y, sq = max(-qx, 0), t = cl((qy - .5 * z) / (m2 + .25), 0, 1);
+  const a = m2 * (qx + sq) * (qx + sq) + qy * qy, b = m2 * (qx + .5 * t) * (qx + .5 * t) + (qy - m2 * t) * (qy - m2 * t);
+  return sqrt(((min(qy, -qx * m2 - qy * .5) > 0 ? 0 : min(a, b)) + qz * qz) / m2) * sign(max(qz, -y)) * s;
+}
+const ext = (d2, z, t, r) => L2(max(d2 + r, 0), max(abs(z) - t + r, 0)) + min(max(d2 + r, abs(z) - t + r), 0) - r; // a 2D shape extruded to half-thickness t, edges rounded by r
+// a die: pips sunk in each face, opposite faces adding to seven
+const PIPS = { 1: [[0, 0]], 2: [[-1, -1], [1, 1]], 3: [[-1, -1], [0, 0], [1, 1]], 4: [[-1, -1], [1, -1], [-1, 1], [1, 1]], 5: [[-1, -1], [1, -1], [0, 0], [-1, 1], [1, 1]], 6: [[-1, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [1, 1]] };
+const PIPC = []; for (const [n, u, v, f] of [[[0, 1, 0], [1, 0, 0], [0, 0, 1], 1], [[0, -1, 0], [1, 0, 0], [0, 0, 1], 6], [[0, 0, 1], [1, 0, 0], [0, 1, 0], 2], [[0, 0, -1], [1, 0, 0], [0, 1, 0], 5], [[1, 0, 0], [0, 0, 1], [0, 1, 0], 3], [[-1, 0, 0], [0, 0, 1], [0, 1, 0], 4]])
+  for (const [a, b] of PIPS[f]) PIPC.push([0, 1, 2].map(k => n[k] * 1.03 + (u[k] * a + v[k] * b) * .5));
+const pips = (x, y, z) => { let d = 1e9; for (const [a, b, c] of PIPC) d = min(d, sph(x - a, y - b, z - c, .19)); return d; };
+
+// ── the second set: fifty more. Literal ones for the early puzzles, associations, and the sly ones ──
+Object.assign(MODELS, {
+  egg: { base: 'walnut', accent: 'gold', top: B => { // EGG
+    const cup = lathe([[0, 0, 1], [.5, 0], [.55, .1], [.32, .28], [.26, .5], [.42, .66], [.72, .9], [.86, 1.2], [.84, 1.28, 1], [.7, 1.14], [0, 1.08, 1]], 3);
+    return [
+      P('gold', (x, y, z) => cup(x, y - B, z)),
+      P('porcelain', (x, y, z) => { const yy = y - B - 2.02, k = 1 - .12 * cl(yy / 1.12, -1, 1); return ell(x / k, yy, z / k, .8, 1.12, .8) * k; }, tint(.9, .84, .74)),
+    ]; } },
+
+  teacup: { base: 'walnut', accent: 'gold', top: B => { // TEA
+    const saucer = lathe([[0, 0, 1], [.55, 0], [1.15, .1], [1.62, .26], [1.66, .33, 1], [1.52, .3], [1.1, .2], [.5, .16], [0, .16, 1]], 2);
+    const cup = lathe([[0, .16, 1], [.36, .16], [.44, .25], [.62, .42], [.9, .85], [1.08, 1.42], [1.1, 1.5, 1], [0, 1.5, 1]], 3);
+    const steam = [-1, 1].map(s => tube(Array.from({ length: 11 }, (_, i) => { const t = i / 10; return [s * .22 + .14 * sin(t * 6 + s), 1.75 + t * 1.6, 0, .075 - t * .03]; })));
+    return [
+      P('porcelain', (x, y, z) => { const yy = y - B; let d = smax(cup(x, yy, z), -ell(x, yy - 1.62, z, 1, 1, 1), .03); d = min(d, saucer(x, yy, z)); return smin(d, L2(L2(x - 1.2, yy - 1.0) - .3, z) - .08, .05); }, tint(.92, .91, .88)),
+      P('lacquer', (x, y, z) => cylY(x, y - B - .95, z, .82, .03), tint(.25, .08, .012)),
+      P('gold', (x, y, z) => torY(x, y - B - 1.5, z, 1.08, .035)),
+      P('milkglass', (x, y, z) => min(steam[0](x, y - B, z), steam[1](x, y - B, z)), () => { OP = .4; EM = .15; }),
+    ]; } },
+
+  eye: { base: 'ebony', accent: 'gold', top: B => { const cy = B + 1.6; return [ // EYE
+    P('porcelain', (x, y, z) => smin(sph(x, y - cy, z, 1.08), sph(x, y - cy, z - .6, .6), .22), (x, y, z) => {
+      const yy = y - cy, l = L3(x, yy, z) || 1, ang = Math.acos(cl(z / l, -1, 1));
+      if (ang < .2) set(.004, .004, .006);
+      else if (ang < .5) { const s = .5 + .5 * sin(atan2(yy, x) * 38 + vn(x * 9, yy * 9, z * 9) * 5), t = (ang - .2) / .3; set(mix(.02, .07, s), mix(.1, .3, s) * (1 - .45 * t), mix(.38, .8, s) * (1 - .35 * t)); }
+      else set(.93, .91, .88); }),
+    P('gold', (x, y, z) => { const yy = y - B; fold(x, z, 3, -PI / 2); return min(cap(PX, yy, PZ, .18, .08, 0, .8, 1.15, 0, .075), cylY(x, yy - .12, z, .34, .12, .04)); }), // a three-pronged claw
+  ]; } },
+
+  cat: { base: 'marbleW', accent: 'gold', top: B => { // CAT
+    const tail = tube([[-.55, .22, -.45, .13], [-.82, .2, -.05, .13], [-.72, .2, .4, .12], [-.35, .18, .7, .11], [.1, .18, .78, .1], [.45, .25, .62, .09], [.6, .4, .4, .08]]);
+    return [P('lacquer', (x, y, z) => { const yy = y - B, fx = abs(x);
+      let d = ell(x, yy - 1.0, z + .1, .76, 1.02, .68); d = smin(d, ell(x, yy - .32, z + .02, .92, .36, .8), .3);
+      d = smin(d, cap(fx - .28, yy, z - .42, 0, .08, 0, 0, 1.1, -.04, .14), .14);
+      const hy = yy - 2.3; let h = ell(x, hy, z - .02, .6, .5, .54); h = smin(h, ell(x, hy + .18, z - .42, .25, .17, .18), .12);
+      h = smin(h, rcone(fx - .32, hy, z * 1.6, 0, .28, 0, .1, .82, -.05, .2, .03) / 1.3, .08);
+      return min(smin(d, h, .18), tail(x, yy, z)); },
+    (x, y, z) => { const hy = y - B - 2.3; if (z > .25 && L2((abs(x) - .22) / 1.5, hy - .06) < .085) { if (abs(abs(x) - .22) < .022) set(.01, .01, .01); else { set(1, .72, .22); MID = MAT.gold; } } })]; } },
+
+  chili: { base: 'marbleB', accent: 'gold', top: B => { // HOT
+    const body = tube(Array.from({ length: 15 }, (_, i) => { const t = i / 14; return [-.95 + 2.05 * t, .5 + 2.1 * pow(max(t - .6, 0), 1.6) - .1 * sin(t * PI), 0, .42 * pow(1 - t, .55) + .04]; }));
+    return [
+      P('lacquer', (x, y, z) => body(x, y - B, z), tint(.72, .03, .02)),
+      P('lacquer', (x, y, z) => { const yy = y - B; return min(ell(x + 1.0, yy - .52, z, .16, .38, .38), cap(x, yy, z, -1.12, .52, 0, -1.45, .9, 0, .08)); }, tint(.12, .32, .06)),
+    ]; } },
+
+  dumbbell: { base: 'walnut', accent: 'silver', top: B => { const cy = B + 1.0; return [ // GYM
+    P('silver', (x, y, z) => cap(x, y - cy, z, -1.55, 0, 0, 1.55, 0, 0, .11), tint(.72, .72, .75)),
+    P('lacquer', (x, y, z) => { const yy = y - cy, fx = abs(x); return min(cylY(yy, fx - .95, z, .78, .1, .04), cylY(yy, fx - 1.18, z, .6, .09, .04), cylY(yy, fx - 1.36, z, .2, .07, .02)); }, tint(.05, .05, .055)),
+    P('gold', (x, y, z) => { const yy = y - B; return smin(cylY(x, yy - .2, z, .3, .2, .05), cap(x, yy, z, 0, .3, 0, 0, cy - B - .1, 0, .12), .1); }),
+  ]; } },
+
+  trophy: { base: 'ebony', accent: 'gold', top: B => { // WIN
+    const cup = lathe([[0, 0, 1], [.72, 0], [.72, .16], [.52, .22], [.46, .38, 1], [.28, .44], [.15, .6], [.13, 1.0], [.28, 1.16], [.82, 1.56], [.98, 2.2], [1.0, 2.55], [.93, 2.58, 1], [0, 2.46, 1]], 3);
+    return [P('gold', (x, y, z) => { const yy = y - B; return smin(cup(x, yy, z), max(L2(L2(abs(x) - 1.02, yy - 2.0) - .32, z) - .07, .8 - abs(x)), .05); })]; } },
+
+  scissors: { base: 'marbleB', accent: 'gold', top: B => { const py = 1.3; // CUT
+    const half = (x, y, z, sx) => { const a = sx * .3, c = cos(a), s = sin(a), u = c * x + s * (y - py), v = -s * x + c * (y - py), w = z - sx * .05, t = cl(v / 2.25, 0, 1);
+      const b = ext(max(abs(u + sx * .04) - .26 * (1 - t) - .02, -v, v - 2.25) * .9, w, .05, .015);
+      return [b, min(cap(u, v, w, 0, 0, 0, 0, -.62, 0, .07), L2(L2(u, v + .95) - .3, w) - .075)]; };
+    return [
+      P('silver', (x, y, z) => min(half(x, y - B, z, 1)[0], half(x, y - B, z, -1)[0])),
+      P('gold', (x, y, z) => min(half(x, y - B, z, 1)[1], half(x, y - B, z, -1)[1], cylZ(x, y - B - py, z, .1, .14, .03))),
+    ]; } },
+
+  question: { base: 'ebony', accent: 'gold', top: B => { const cy = 2.85, Rr = .62; return [ // WHY
+    P('gold', (x, y, z) => { const yy = y - B, ay = yy - cy, zz = z * 1.1;
+      let d = max(L2(L2(x, ay) - Rr, zz) - .18, -max(x, ay));                   // the hook, its lower left quarter missing
+      d = min(d, sph(x + Rr, ay, zz, .18), cap(x, yy, zz, 0, cy - Rr, 0, 0, cy - Rr - .55, 0, .18));
+      return min(d, sph(x, yy - .78, zz, .23), cylY(x, yy - .25, zz, .07, .3)) / 1.1; }),
+  ]; } },
+
+  fish: { base: 'lapis', accent: 'gold', top: B => { const cy = B + 1.72; // FISH
+    const fin = (x, y, z, cx, cyy, a, rx, ry) => { rot(x - cx, y - cyy, a); return ell(QX, QY, z, rx, ry, .06); };
+    return [
+      P('copper', (x, y, z) => { const yy = y - cy, k = 1 - .38 * sst(-.2, 1.3, -x); return smax(ell(x, yy / k, z / k, 1.15, .68, .36) * k, -ell(x - 1.14, yy + .1, z, .1, .05, .2), .02); },
+        (x, y, z) => { const yy = y - cy; set(1, .5 + .12 * sst(-.5, .4, -yy), .16 + .1 * sst(-.6, .2, -yy)); const sc = .5 + .5 * sin(x * 22 + abs(yy) * 9) * sin(yy * 22 - x * 6); R *= .9 + .1 * sc; G *= .88 + .12 * sc; }),
+      P('amber', (x, y, z) => { const yy = y - cy; return min(fin(x, yy, z, -1.5, .3, .75, .55, .22), fin(x, yy, z, -1.5, -.3, -.75, .55, .22), fin(x, yy, z, -.1, .62, -.25, .5, .2), fin(x, yy, abs(z) - .3, .25, -.38, -.5, .28, .12)); }, tint(.95, .4, .06)),
+      P('ebony', (x, y, z) => sph(x - .72, y - cy - .14, abs(z) - .26, .1)),
+      P('silver', (x, y, z) => cylY(x, y - B - .5, z, .07, .55)),
+    ]; } },
+
+  lemon: { base: 'ebony', accent: 'gold', top: B => { const cy = B + .82; return [ // SOUR
+    P('porcelain', (x, y, z) => { rot(x, y - cy, -.22); let d = ell(QX, QY, z, 1.02, .78, .78); d = smin(d, ell(QX - 1.0, QY, z, .3, .15, .15), .14); d = smin(d, ell(QX + 1.0, QY, z, .24, .14, .14), .14); return d + .02 * (vn(x * 7, y * 7, z * 7) - .5); }, tint(.97, .76, .05)),
+    P('jade', (x, y, z) => { rot(x + .45, y - cy - .78, .5); return ell(QX, QY, z - .1, .52, .065, .22); }),
+  ]; } },
+
+  donut: { base: 'marbleW', accent: 'gold', top: B => { const cy = B + 1.32; // ZERO
+    const SPR = [[.9, .2, .2], [.98, .85, .25], [.25, .6, .95], [.97, .97, .97], [.45, .82, .35]];
+    return [
+      P('walnut', (x, y, z) => torZ(x, y - cy, z, .8, .46), tint(.66, .38, .14)),
+      P('porcelain', (x, y, z) => { const yy = y - cy; return smax(torZ(x, yy, z, .8, .5), .1 + .07 * sin(atan2(yy, x) * 7) - z, .05); },
+        (x, y, z) => { const g = h3(floor(x * 8), floor(y * 8), floor(z * 8)); if (g < .14) set(...SPR[floor(g / .14 * 5)]); else set(.96, .5, .66); }),
+    ]; } },
+
+  pawn: { base: 'ivory', accent: 'gold', top: B => [P('ivory', (x, y, z) => { const yy = y - B; return smin(sph(x, yy - .98, z, .84), cylY(x, yy - .1, z, .44, .14, .05), .28); })] }, // PAWN
+
+  house: { base: 'walnut', accent: 'gold', top: B => { // HOME
+    const lit = (x, yy, z) => z > .66 && ((abs(x) < .2 && yy < .82) || (abs(abs(x) - .56) < .17 && abs(yy - .98) < .17));
+    return [
+      P('porcelain', (x, y, z) => { const yy = y - B; let d = box(x, yy - .76, z, .95, .76, .74, .04); d = smax(d, -box(x, yy - .4, z - .74, .2, .42, .07, .03), .02); return smax(d, -box(abs(x) - .56, yy - .98, z - .74, .17, .17, .06, .03), .02); },
+        (x, y, z) => { if (lit(x, y - B, z)) { set(1, .7, .3); EM = .7; } else set(.92, .9, .85); }),          // the windows are lit
+      P('lacquer', (x, y, z) => { const yy = y - B - 1.5; return ext(max((abs(x) + yy * 1.15 - 1.15) / 1.524, -yy), z, .88, .02); }, tint(.5, .07, .04)),
+      P('lacquer', (x, y, z) => box(x - .5, y - B - 2.15, z + .2, .14, .4, .14, .02), tint(.42, .2, .14)),
+    ]; } },
+
+  cloud: { base: 'lapis', accent: 'silver', top: B => { // CLOUD
+    const S = [[0, 1.55, 0, .72], [-.75, 1.25, .05, .55], [.78, 1.3, 0, .58], [-.32, 1.98, -.05, .52], [.38, 2.0, .05, .56], [-1.22, 1.08, 0, .38], [1.22, 1.12, .05, .4], [0, 1.15, .2, .55]];
+    return [
+      P('porcelain', (x, y, z) => { const yy = y - B; let d = 1e9; for (const [a, b, c, r] of S) d = smin(d, sph(x - a, yy - b, (z - c) * 1.3, r), .2); return smax(d / 1.15, .82 - yy, .1); }, tint(.95, .96, .98)),
+      P('silver', (x, y, z) => cylY(x, y - B - .45, z, .09, .45)),
+    ]; } },
+
+  pyramid: { base: 'lapis', accent: 'gold', top: B => { // EGYPT
+    const big = (x, yy, z) => pyr(x, yy, z + .15, 2.3, 2.05), small = (x, yy, z) => pyr(x + 1.05, yy, z - .7, 1.1, .98);
+    return [
+      P('sand', (x, y, z) => { const yy = y - B; return min(max(big(x, yy, z), yy - 1.62), small(x, yy, z)); }, (x, y, z) => { const k = .86 + .14 * (.5 + .5 * sin((y - B) * 22)); set(.8 * k, .64 * k, .4 * k); }), // courses of stone
+      P('gold', (x, y, z) => { const yy = y - B; return max(big(x, yy, z), 1.62 - yy); }),                  // the gilded capstone
+    ]; } },
+
+  eiffel: { base: 'ebony', accent: 'gold', top: B => { // PARIS
+    const W = yy => yy < 1.0 ? mix(.98, .4, pow(cl(yy, 0, 1), .75)) : yy < 2.4 ? mix(.4, .15, (yy - 1.0) / 1.4) : mix(.15, .035, cl((yy - 2.4) / 1.35, 0, 1));
+    return [P('bronze', (x, y, z) => { const yy = y - B, fx = abs(x), fz = abs(z);
+      let d = max((max(fx, fz) - W(yy)) * .8, yy - 3.85, -yy);
+      d = smax(d, -min(L2(x / .5, max(yy, 0) / .62) - 1, L2(z / .5, max(yy, 0) / .62) - 1) * .45, .02);  // the great arches between the legs
+      return min(d, box(x, yy - 1.02, z, .56, .05, .56, .01), box(x, yy - 2.4, z, .26, .045, .26, .01)); },
+    (x, y, z) => { const yy = y - B, m = max(abs(x), abs(z)), h = abs(sin((yy + m) * 18)) * abs(sin((yy - m) * 18)), k = .65 + .35 * sst(.2, .6, h); R *= k; G *= k; Bc *= k; })]; } }, // iron lattice
+
+  torii: { base: 'ebony', accent: 'gold', top: B => [ // JAPAN
+    P('lacquer', (x, y, z) => { const yy = y - B, fx = abs(x);
+      const d = min(rcone(fx, yy, z, .9, 0, 0, .84, 2.75, 0, .13, .11), box(x, yy - 2.2, z, 1.3, .085, .075, .02), box(x, yy - 2.5, z, .09, .24, .07, .02), box(x, yy - 2.72, z, 1.5, .07, .1, .02));
+      return min(d, cylY(fx - .9, yy - .08, z, .19, .08, .03)); }, tint(.62, .07, .03)),
+    P('lacquer', (x, y, z) => box(x, y - B - 2.88 - .06 * x * x, z, 1.62, .1, .13, .03), tint(.02, .02, .025)),   // the black top beam, ends sweeping up
+  ] },
+
+  witchhat: { base: 'ebony', accent: 'gold', top: B => { // WITCH
+    const cone = tube([[0, .32, 0, .86], [0, .9, 0, .68], [.02, 1.5, 0, .5], [.1, 2.0, 0, .34], [.3, 2.5, 0, .2], [.62, 2.86, 0, .11], [.98, 2.96, 0, .055]]);
+    return [
+      P('lacquer', (x, y, z) => { const yy = y - B; return min(cone(x, yy, z), cylY(x, yy - .26 + .1 * pow(L2(x, z) / 1.8, 2), z, 1.8, .045, .035)); }, tint(.14, .05, .22)),
+      P('gold', (x, y, z) => { const yy = y - B; return min(max(abs(L2(x, z) - .8) - .045, abs(yy - .55) - .13), max(box(x, yy - .55, z - .82, .17, .15, .05, .02), -box(x, yy - .55, z - .82, .09, .07, .2))); }),
+    ]; } },
+
+  globe: { base: 'walnut', accent: 'gold', top: B => { const cy = B + 2.0; return [ // WORLD
+    P('lapis', (x, y, z) => sph(x, y - cy, z, 1.05), (x, y, z) => { rot(x, y - cy, .41); if (fbm(QX * 1.15 + 3.1, QY * 1.15 + .4, z * 1.15 - 2, 4) > .57) { set(1, .72, .3); MID = MAT.gold; } }), // gold continents on a lapis sea
+    P('gold', (x, y, z) => { rot(x, y - cy, .41); return min(max(L2(L2(QY, z) - 1.17, QX) - .055, z - .15), sph(QX, abs(QY) - 1.2, z, .09)); }),
+    P('gold', (x, y, z) => { const yy = y - B; return min(cylY(x, yy - .45, z, .09, .5), cylY(x, yy - .06, z, .55, .06, .03)); }),
+  ]; } },
+
+  phone: { base: 'ivory', accent: 'gold', top: B => { // HELLO
+    const hand = tube([[-1.12, 1.45, 0, .24], [-.92, 1.62, 0, .16], [0, 1.74, 0, .15], [.92, 1.62, 0, .16], [1.12, 1.45, 0, .24]]);
+    const dial = (x, y, z) => { const py = y - B - .62, pz = z - .7; return [py * .15 + pz * .99, py * .99 - pz * .15]; };   // the dial lies on the sloping front
+    return [
+      P('lacquer', (x, y, z) => { const yy = y - B; let d = box(x, yy - .55, z, 1.02 - .2 * yy, .52, .78 - .15 * yy, .16); d = min(d, cap(abs(x), yy, z, .58, .95, -.05, .62, 1.32, -.05, .09)); return min(d, hand(x, yy, z), ell(abs(x) - 1.12, yy - 1.36, z, .34, .2, .34)); }, tint(.02, .02, .025)),
+      P('gold', (x, y, z) => { const [ax, ry] = dial(x, y, z); let d = ext(L2(x, ry) - .5, ax, .045, .015); for (let k = 0; k < 10; k++) { const a = -2.4 + k * .52; d = smax(d, -sph(x - .36 * cos(a), ry - .36 * sin(a), ax - .05, .08), .01); } return d; }),
+      P('porcelain', (x, y, z) => { const [ax, ry] = dial(x, y, z); return ext(L2(x, ry) - .15, ax - .04, .03, .01); }, tint(.95, .93, .88)),
+    ]; } },
+
+  sheep: { base: 'lapis', accent: 'silver', top: B => { // SLEEP
+    const W = []; for (let i = 0; i < 26; i++) { const u = h3(i, 3, 9) * 2 - 1, a = h3(i, 7, 1) * TAU, s = sqrt(1 - u * u); W.push([-.1 + .95 * s * cos(a), 1.32 + .62 * u, .62 * s * sin(a), .26 + .14 * h3(i, 5, 2)]); }
+    const Z = (x, y, z, cx, cy, s) => { const lx = (x - cx) / s, ly = (y - cy) / s, lz = z / s; return min(cap(lx, ly, lz, -1, 1, 0, 1, 1, 0, .28), cap(lx, ly, lz, 1, 1, 0, -1, -1, 0, .28), cap(lx, ly, lz, -1, -1, 0, 1, -1, 0, .28)) * s; };
+    return [
+      P('ivory', (x, y, z) => { const yy = y - B; let d = ell(x + .1, yy - 1.32, z, .95, .62, .62); for (const [a, b, c, r] of W) d = smin(d, sph(x - a, yy - b, z - c, r), .1); return d; }, tint(.93, .9, .84)),
+      P('lacquer', (x, y, z) => { const yy = y - B; let d = smin(ell(x - .98, yy - 1.5, z, .34, .4, .3), ell(x - .9, yy - 1.68, abs(z) - .3, .1, .2, .08), .05); return min(d, cap(abs(x + .1) - .5, yy, abs(z) - .3, 0, .9, 0, 0, .05, 0, .1)); }, tint(.05, .045, .045)),
+      P('gold', (x, y, z) => { const yy = y - B; return min(Z(x, yy, z, 1.15, 2.45, .2), Z(x, yy, z, 1.55, 2.95, .16), Z(x, yy, z, 1.85, 3.4, .13)); }),   // zzz
+    ]; } },
+
+  lion: { base: 'marbleB', accent: 'gold', top: B => { const cy = B + 1.78; return [ // PRIDE
+    P('gold', (x, y, z) => { const yy = y - cy, fx = abs(x); let f = ell(x, yy + .02, z - .15, .74, .8, .6);
+      f = smin(f, ell(fx - .21, yy + .36, z - .62, .27, .22, .22), .12); f = smin(f, sph(fx - .56, yy - .68, z - .05, .2), .1);   // muzzle, ears
+      return smax(f, -ell(fx - .27, yy - .14, z - .66, .11, .045, .1), .03); }),
+    P('ebony', (x, y, z) => { const yy = y - cy; rot(x, yy + .12, 0); return min(ell(x, yy + .1, z - .76, .17, .11, .1), cap(x, yy, z, 0, -.2, .74, 0, -.38, .74, .035)); }),   // a dark nose and the line of the mouth
+    P('bronze', (x, y, z) => { const yy = y - cy, a = atan2(yy, x), r = L2(x, yy); return min(L2(r - .98 - .06 * sin(a * 21) - .04 * sin(a * 7), z + .2) - .47, ell(x, yy, z + .32, 1.2, 1.24, .52)) + .03 * (vn(x * 6, yy * 6, z * 6) - .5); }, tint(.62, .3, .1)), // a full, soft mane
+    P('gold', (x, y, z) => cylY(x, y - B - .3, z, .3, .35, .08)),
+  ]; } },
+
+  queen: { base: 'marbleW', accent: 'gold', sy: .95, top: B => { // QUEEN
+    const F = lathe([[0, -.1, 1], [.56, -.1], [.5, .35], [.44, .9], [.58, 1.3], [.92, 1.72], [1.02, 1.84, 1], [.92, 1.92], [.5, 1.86], [0, 1.92, 1]], 3);
+    return [
+      P('marbleW', (x, y, z) => { const yy = y - B; let d = F(x, yy, z); fold(x, z, 9); d = smin(d, sph(PX - .95, yy - 1.95, PZ, .11), .04); return smin(d, sph(x, yy - 2.12, z, .24), .1); }),
+      P('gold', (x, y, z) => torY(x, y - B - 1.1, z, .5, .05)),
+    ]; } },
+
+  cheese: { base: 'walnut', accent: 'gold', top: B => { // MOUSE
+    const H = [[.25, .5, .55, .22], [-.45, .95, .3, .18], [.55, 1.08, -.05, .2], [-.15, .32, -.42, .16], [.05, 1.32, .5, .14], [-.8, .42, .1, .15], [.85, .45, .22, .16], [-.6, 1.25, -.2, .17]];
+    const L = (x, z) => [cos(.55) * x + sin(.55) * z, -sin(.55) * x + cos(.55) * z];
+    return [P('ivory', (x, y, z) => { const yy = y - B, [xr, zr] = L(x, z); let d = max(box(xr, yy - .72, zr, 1.25, .72, .95, .05), (abs(zr) + .38 * xr - .475) / 1.07);
+      for (const [hx, hy, hz, hr] of H) d = smax(d, -sph(xr - hx, yy - hy, zr - hz, hr), .03); return d; }, (x, y, z) => { if (L(x, z)[0] < -1.18) set(.85, .5, .08); else set(.98, .78, .22); })];
+  } },
+
+  dove: { base: 'lapis', accent: 'gold', top: B => { const cy = B + 1.7; // PEACE
+    const branch = tube([[1.15, .18, 0, .05], [1.05, -.15, .08, .05], [.85, -.4, .12, .045]]);
+    return [
+      P('porcelain', (x, y, z) => { const yy = y - cy, fz = abs(z); let d = smin(ell(x + .1, yy, z, .85, .44, .42), sph(x - .78, yy - .3, z, .3), .2);
+        d = smin(d, ell(x + 1.0, yy + .02, z, .55, .09, .32), .15);
+        const th = .95, w1 = (yy - .2) * sin(th) + (fz - .2) * cos(th), w2 = (yy - .2) * cos(th) - (fz - .2) * sin(th);
+        return smin(d, ell(x + .05 - .25 * w1, w1 - .7, w2, .5, .78, .06), .1); }, tint(.95, .95, .93)),   // wings raised
+      P('gold', (x, y, z) => rcone(x, y - cy, z, 1.02, .28, 0, 1.24, .22, 0, .07, .02)),
+      P('jade', (x, y, z) => { const yy = y - cy; let d = branch(x, yy, z); for (const [lx, ly, lz] of [[1.08, -.05, .14], [.95, -.3, -.02], [.88, -.42, .2]]) d = min(d, ell(x - lx, yy - ly, z - lz, .15, .065, .08)); return d; }), // an olive branch
+      P('ebony', (x, y, z) => sph(x - .92, y - cy - .38, abs(z) - .24, .07)),
+      P('silver', (x, y, z) => cylY(x, y - B - .62, z, .07, .65)),
+    ]; } },
+
+  rocket: { base: 'marbleB', accent: 'silver', top: B => { // ROCKET
+    const body = lathe([[0, .35, 1], [.42, .35], [.5, .62], [.55, 1.4], [.5, 2.4], [.38, 3.0], [.2, 3.4], [0, 3.62, 1]], 3);
+    return [
+      P('silver', (x, y, z) => body(x, y - B, z), (x, y, z) => { if (y - B > 2.75) { set(.8, .06, .05); MID = MAT.lacquer; } }),
+      P('lacquer', (x, y, z) => { const yy = y - B; fold(x, z, 3, PI / 2); const t = cl((yy - .12) / 1.2, 0, 1); return ext(max(PX - (.5 + .58 * (1 - t)), yy - 1.32, .12 - yy) * .85, PZ, .055, .02); }, tint(.8, .06, .05)),
+      P('lacquer', (x, y, z) => cylZ(x, y - B - 1.95, z - .5, .2, .09, .03), tint(.05, .15, .42)),
+      P('silver', (x, y, z) => torZ(x, y - B - 1.95, z - .55, .22, .045)),
+      P('flame', (x, y, z) => ell(x, y - B - .2, z, .26, .32, .26), () => { set(1, .55, .12); EM = 1.2; }),
+    ]; } },
+
+  guitar: { base: 'ebony', accent: 'gold', top: B => { // GUITAR
+    const T = (x, y) => { rot(x, y, -.12); return [QX, QY]; };
+    return [
+      P('walnut', (x, y, z) => { const [u, v] = T(x, y - B); return smax(smin(ell(u, v - .88, z, .9, .82, .26), ell(u, v - 1.88, z, .68, .6, .26), .35), -cylZ(u, v - 1.55, z - .26, .25, .1), .02); },
+        (x, y, z) => { const [u, v] = T(x, y - B); if (z > .14) { set(.78, .55, .28); const r = L2(u, v - 1.55); if (r > .27 && r < .36) set(.12, .06, .03); } }),   // a spruce top, a rosette round the hole
+      P('ebony', (x, y, z) => { const [u, v] = T(x, y - B); return min(box(u, v - 3.0, z - .04, .11, .95, .08, .03), box(u, v - 4.18, z - .02, .17, .27, .06, .03), box(u, v - .55, z - .27, .32, .05, .04, .02)); }),
+      P('gold', (x, y, z) => { const [u, v] = T(x, y - B); return min(sph(abs(u) - .22, v - 4.05, z, .07), sph(abs(u) - .22, v - 4.3, z, .07), box(u, v - 2.06, z - .13, .11, .02, .03)); }),
+    ]; } },
+
+  cherry: { base: 'marbleW', accent: 'gold', top: B => { // CHERRY
+    const st = tube([[-.45, .98, 0, .065], [-.38, 1.6, 0, .062], [-.15, 2.2, 0, .06], [.05, 2.55, 0, .06]]), st2 = tube([[.5, .9, .12, .065], [.45, 1.5, .06, .062], [.25, 2.15, 0, .06], [.05, 2.55, 0, .06]]);
+    const ch = (x, yy, z, cx, cyy, cz) => smax(sph(x - cx, yy - cyy, z - cz, .52), -sph(x - cx, yy - cyy - .56, z - cz, .14), .12);
+    return [
+      P('ruby', (x, y, z) => { const yy = y - B; return min(ch(x, yy, z, -.45, .52, 0), ch(x, yy, z, .5, .45, .12)); }),
+      P('jade', (x, y, z) => { const yy = y - B; rot(x - .38, yy - 2.48, -.45); return min(st(x, yy, z), st2(x, yy, z), ell(QX, QY, z - .05, .5, .065, .22)); }, (x, y, z) => { if (y - B < 2.4) set(.25, .42, .12); }),
+    ]; } },
+
+  banana: { base: 'walnut', accent: 'gold', top: B => { // BANANA
+    const T = tube(Array.from({ length: 17 }, (_, i) => { const t = i / 16, a = -.92 + 1.84 * t; return [2.05 * sin(a), .44 + 2.05 * (1 - cos(a)), 0, .37 * pow(sin(PI * (.05 + .9 * t)), .55) + .05]; }));
+    return [P('porcelain', (x, y, z) => T(x, y - B, z), (x, y, z) => { if (abs(x) > 1.52) set(.22, .16, .06); else set(.97, .8, .16); })];
+  } },
+
+  sombrero: { base: 'walnut', accent: 'gold', top: B => { // MEXICO
+    const brim = lathe([[0, .25, 1], [1.0, .3], [1.6, .42], [1.95, .62], [2.05, .76], [2.0, .82], [1.84, .68], [1.5, .52], [1.0, .44], [0, .42, 1]], 3);
+    const crown = lathe([[0, .3, 1], [.64, .3], [.6, .9], [.52, 1.6], [.4, 1.96], [0, 2.08, 1]], 3);
+    return [
+      P('ivory', (x, y, z) => { const yy = y - B; return min(brim(x, yy, z), crown(x, yy, z)); }, (x, y, z) => { const yy = y - B, r = L2(x, z), a = atan2(z, x), w = .5 + .5 * sin(a * 26 + r * 9);
+        set(.84 * (.85 + .15 * w), .68 * (.85 + .15 * w), .42 * (.8 + .2 * w)); if (r > 1.72 && yy > .5) set(...(sin(a * 16) > 0 ? [.72, .07, .05] : [.06, .45, .2])); }),  // woven straw, an embroidered rim
+      P('gold', (x, y, z) => { const yy = y - B; return L2(max(abs(L2(x, z) - .63) - .04, 0), max(abs(yy - .52) - .13, 0)) - .015; }),
+    ]; } },
+
+  maple: { base: 'ebony', accent: 'gold', top: B => { const cy = B + 1.95; // CANADA
+    const LOBES = [[0, 1], [.95, .82], [-.95, .82], [1.85, .52], [-1.85, .52]];
+    const ang = (a, c) => abs(mod(a - c + PI, TAU) - PI);
+    const rad = a => { let k = 0; for (const [c, w] of LOBES) k = max(k, w * pow(max(cos(ang(a, c) * 2.1), 0), 2.2)); return .42 + 1.08 * k + .05 * pow(abs(cos(a * 16)), 6) * k; };
+    return [
+      P('lacquer', (x, y, z) => { const yy = y - cy; return ext((L2(x, yy) - rad(atan2(x, yy))) * .55, z, .07, .035); },
+        (x, y, z) => { const yy = y - cy, a = atan2(x, yy); let v = 1; for (const [c] of LOBES) v = min(v, ang(a, c) * L2(x, yy)); set(.72, .04, .03); if (v < .05) set(.45, .02, .02); }),   // red, with darker veins
+      P('lacquer', (x, y, z) => cap(x, y - B, z, 0, .05, 0, 0, 1.6, 0, .07), tint(.4, .03, .02)),
+    ]; } },
+
+  dice: { base: 'walnut', accent: 'gold', top: B => { // CHANCE
+    const D = (x, y, z, cy, a) => { const yy = y - B - cy, c = cos(a), s = sin(a); return [(c * x + s * z) / .62, yy / .62, (-s * x + c * z) / .62]; };
+    const die = p => smax(box(p[0], p[1], p[2], 1, 1, 1, .22), -pips(p[0], p[1], p[2]), .04) * .62;
+    return [P('ivory', (x, y, z) => min(die(D(x, y, z, .62, .5)), die(D(x, y, z, 1.86, -.35))), (x, y, z) => { for (const [cy, a] of [[.62, .5], [1.86, -.35]]) if (pips(...D(x, y, z, cy, a)) < .04) set(.02, .02, .025); })];
+  } },
+
+  cheers: { base: 'ebony', accent: 'gold', top: B => { // CHEERS
+    const G = lathe([[0, 0, 1], [.62, 0], [.62, .06], [.14, .14], [.1, .95], [.3, 1.1], [.62, 1.4], [.72, 1.85], [.7, 2.4, 1], [0, 2.4, 1]], 3), k = .82;
+    const glass = (x, y, z) => { let d = 1e9, w = 1e9; for (const sx of [-1, 1]) { rot(x - sx * 1.0, y - B, -sx * .19); const u = QX / k, v = QY / k, q = z / k, g = G(u, v, q);   // two glasses leaning in to touch
+        d = min(d, max(g, -max(g + .045, 1.15 - v), v - 2.37) * k); w = min(w, max(g + .05, v - 1.72, 1.16 - v) * k); } return [d, w]; };
+    return [P('glass', (x, y, z) => glass(x, y, z)[0]), P('ruby', (x, y, z) => glass(x, y, z)[1], tint(.42, .015, .04))];
+  } },
+
+  snowflake: { base: 'lapis', accent: 'silver', top: B => { const cy = B + 1.95; return [ // WINTER
+    P('silver', (x, y, z) => { const yy = y - cy, a = atan2(yy, x) - PI / 6, s = PI / 3, b = a - Math.round(a / s) * s, r = L2(x, yy), px = r * cos(b), py = abs(r * sin(b));
+      const d = min(cap(px, py, z, 0, 0, 0, 1.62, 0, 0, .085), cap(px, py, z, .62, 0, 0, .95, .36, 0, .065), cap(px, py, z, 1.06, 0, 0, 1.3, .24, 0, .06), cylZ(x, yy, z, .3, .07, .03));
+      return min(smax(d, abs(z) - .09, .02), cylY(x, y - B - .15, z, .07, .15)); }),
+  ]; } },
+
+  knight: { base: 'marbleB', accent: 'gold', top: B => { const cy = B + 1.45; // KNIGHT
+    const sh = (x, yy) => max(L2(x + 2.43, yy - 1.25) - 3.38, L2(x - 2.43, yy - 1.25) - 3.38, yy - 1.25);   // a heater shield
+    const sword = (x, y, z) => { rot(x, y - B - 2.0, -.55); const u = QX, v = QY, w = z + .3, t = cl((-.2 - v) / 2.1, 0, 1);
+      return [max(box(u, v + .2, w, .14 * (1 - t * .6), 1.95, .05, .02), -v - 2.1), min(box(u, v - 1.86, w, .55, .07, .07, .03), cap(u, v, w, 0, 1.9, 0, 0, 2.45, 0, .085), sph(u, v - 2.55, w, .14))]; };
+    return [
+      P('lapis', (x, y, z) => { const yy = y - cy; return ext(sh(x, yy), z + .22 * (x / .95) ** 2, .1, .03); },
+        (x, y, z) => { const yy = y - cy; if (sh(x, yy) > -.12 || (abs(x) < .1 && yy > -.8 && yy < .95) || (abs(yy - .3) < .1 && abs(x) < .55)) { set(1, .72, .3); MID = MAT.gold; } }),   // a gold rim and cross
+      P('silver', (x, y, z) => sword(x, y, z)[0]),
+      P('gold', (x, y, z) => sword(x, y, z)[1]),
+    ]; } },
+
+  crystalball: { base: 'ebony', accent: 'gold', top: B => { const cy = B + 1.78; // FUTURE
+    const stand = lathe([[0, 0, 1], [.75, 0], [.8, .12], [.55, .28], [.42, .55], [.6, .74], [.74, .8, 1], [0, .8, 1]], 3);
+    return [
+      P('glass', (x, y, z) => abs(sph(x, y - cy, z, 1.05)) - .035),
+      P('milkglass', (x, y, z) => { const yy = y - cy, a = atan2(z, x) + yy * 2.4; return min((L2(L2(x, z) - .42 - .14 * sin(a * 2), yy * .8) - .26) * .75, sph(x, yy, z, .3)); }, () => { set(.62, .22, 1); EM = 1.1; OP = .8; }),  // a glowing swirl of mist inside
+      P('gold', (x, y, z) => { const yy = y - B; fold(x, z, 3, PI / 2); return min(stand(x, yy, z), cap(PX, yy, PZ, .55, .72, 0, .78, 1.15, 0, .075)); }),
+    ]; } },
+
+  frog: { base: 'walnut', accent: 'gold', top: B => { // PRINCE
+    const crown = (x, y, z) => { let d = box2(L2(x, z) - .3, y - .12, .045, .12, .02); fold(x, z, 5, PI / 2); return min(d, rcone(PX, y, PZ, .3, .2, 0, .33, .46, 0, .07, .03), sph(PX - .34, y - .5, PZ, .06)); };
+    return [
+      P('jade', (x, y, z) => { const yy = y - B, fx = abs(x);
+        let d = smin(ell(x, yy - .72, z + .05, .95, .6, .85), ell(x, yy - 1.18, z - .3, .72, .44, .55), .3);
+        d = smin(d, sph(fx - .38, yy - 1.52, z - .32, .27), .12); d = smin(d, ell(fx - .78, yy - .32, z + .2, .38, .3, .55), .2);
+        d = smin(d, cap(fx, yy, z, .42, .55, .45, .52, .06, .76, .12), .1);
+        return smax(d, -ell(x, yy - 1.02, z - .8, .5, .025, .22), .02); },
+        (x, y, z) => { const yy = y - B; if (L3(abs(x) - .38, yy - 1.52, z - .32) < .3 && z > .44) { set(...(L2(abs(x) - .38, yy - 1.54) < .09 ? [.01, .01, .01] : [.95, .78, .2])); } else if (yy < .7 && z > .3) set(.55, .75, .4); }),
+      P('gold', (x, y, z) => crown(x, y - B - 1.64, z + .1)),   // he is a prince, after all
+    ]; } },
+
+  butterfly: { base: 'ebony', accent: 'silver', top: B => { const cy = B + 2.0; // CHANGE
+    const wing = (x, y, z) => { const yy = y - cy, fx = abs(x), u = fx * cos(.32) - z * sin(.32), w = fx * sin(.32) + z * cos(.32); rot(u - .82, yy - .42, -.5); const up = ell(QX, QY, w, .82, .62, .06); rot(u - .6, yy + .48, .45); return min(up, ell(QX, QY, w, .55, .44, .06)); };
+    return [
+      P('moonstone', wing, (x, y, z) => { const yy = y - cy, fx = abs(x); rot(fx - .82, yy - .42, -.5); const eu = L2(QX / .82, QY / .62); rot(fx - .6, yy + .48, .45); const e = min(eu, L2(QX / .55, QY / .44));
+        if (e > .8) { set(.02, .02, .03); if (h3(floor(x * 6), floor(y * 6), 1) < .3) set(.9, .9, .9); } else set(mix(.05, .2, e), mix(.3, .7, e), mix(.85, 1, e)); }),   // morpho blue, black edges, white spots
+      P('ebony', (x, y, z) => { const yy = y - cy; return min(ell(x, yy, z, .11, .72, .11), sph(x, yy - .78, z, .14), cap(abs(x), yy, z, .04, .85, 0, .34, 1.35, .05, .045), sph(abs(x) - .35, yy - 1.38, z - .05, .08)); }),
+      P('silver', (x, y, z) => cylY(x, y - B - .62, z, .06, .65)),
+    ]; } },
+
+  penguin: { base: 'marbleW', accent: 'silver', top: B => [ // TUXEDO
+    P('lacquer', (x, y, z) => { const yy = y - B; const d = smin(ell(x, yy - 1.22, z, .78, 1.18, .7), sph(x, yy - 2.42, z - .02, .5), .35); rot(abs(x) - .7, yy - 1.3, .25); return smin(d, ell(QX, QY, z + .05, .14, .66, .3), .08); },
+      (x, y, z) => { const yy = y - B; if ((z > .12 && L2(x / .56, (yy - 1.12) / 1.0) < 1) || (z > .25 && L2(x / .3, (yy - 2.38) / .28) < 1)) set(.93, .93, .91);
+        const e = L2(abs(x) - .2, yy - 2.55); if (z > .3 && e < .085) set(...(e < .045 ? [.01, .01, .01] : [.95, .95, .95])); }),   // a white shirt front
+    P('amber', (x, y, z) => { const yy = y - B; return min(rcone(x, yy, z, 0, 2.38, .42, 0, 2.3, .8, .12, .03), ell(abs(x) - .3, yy - .06, z - .35, .26, .07, .26)); }, tint(1, .5, .05)),
+    P('lacquer', (x, y, z) => { const yy = y - B - 2.0; return min(rcone(abs(x), yy, (z - .62) * 1.8, 0, 0, 0, .3, 0, 0, .06, .17) / 1.3, sph(x, yy, z - .62, .08)); }, tint(.7, .03, .03)), // and a bow tie
+  ] },
+
+  bishop: { base: 'ebony', accent: 'gold', top: B => [ // BISHOP
+    P('ebony', (x, y, z) => { const yy = y - B; let d = smin(ell(x, yy - 1.25, z, .6, .98, .6), rcone(x, yy, z, 0, 1.9, 0, 0, 2.42, 0, .2, .06), .2);
+      d = smin(d, cylY(x, yy - .14, z, .38, .2, .05), .2); rot(x, yy - 1.5, -.6); d = smax(d, -box(QX, QY - .3, z - .62, .055, .42, .6), .02);   // the mitre's cut
+      return min(d, sph(x, yy - 2.52, z, .14)); }),
+    P('gold', (x, y, z) => torY(x, y - B - .5, z, .4, .05)),
+  ] },
+
+  pumpkin: { base: 'walnut', accent: 'gold', top: B => { const cy = B + .98; return [ // PUMPKIN
+    P('amber', (x, y, z) => { const yy = y - cy; const d = ell(x, yy, z, 1.3, .95, 1.3) + .1 * (1 - pow(abs(cos(atan2(z, x) * 4)), .5)) * (1 - pow(min(abs(yy) / .95, 1), 4)); return smax(d, -sph(x, yy - 1.0, z, .32), .25); }, tint(.95, .32, .02)),
+    P('walnut', (x, y, z) => rcone(x, y - cy, z, 0, .7, 0, .16, 1.25, .04, .15, .1), tint(.28, .22, .08)),
+  ]; } },
+
+  snowman: { base: 'lapis', accent: 'silver', top: B => [ // SNOWMAN
+    P('porcelain', (x, y, z) => { const yy = y - B; return smin(smin(sph(x, yy - .78, z, .8), sph(x, yy - 1.95, z, .6), .12), sph(x, yy - 2.85, z, .45), .1); }, tint(.96, .97, .99)),
+    P('lacquer', (x, y, z) => { const yy = y - B; let d = min(cylY(x, yy - 3.47, z, .33, .3, .03), cylY(x, yy - 3.2, z, .52, .05, .02), sph(abs(x) - .16, yy - 2.95, z - .4, .075)); for (const by of [1.75, 2.05]) d = min(d, sph(x, yy - by, z - .57, .08)); return d; }, tint(.02, .02, .025)),
+    P('amber', (x, y, z) => rcone(x, y - B, z, 0, 2.85, .4, .04, 2.8, .88, .1, .02), tint(1, .45, .05)),
+    P('lacquer', (x, y, z) => min(torY(x, y - B - 2.42, z, .45, .1), cap(x, y - B, z, .3, 2.4, .35, .42, 1.95, .45, .08)), tint(.65, .05, .04)),
+  ] },
+
+  rainbow: { base: 'marbleW', accent: 'gold', top: B => { const cy = B + .3; // RAINBOW
+    const COL = [[.85, .08, .08], [.95, .42, .04], [.98, .85, .1], [.18, .68, .22], [.08, .42, .9], [.28, .18, .72], [.55, .22, .78]];
+    const CL = [[-1.3, .2, .05, .42], [-1.65, .05, -.05, .3], [-.95, .02, .1, .3], [1.3, .2, .05, .42], [1.65, .05, -.05, .3], [.95, .02, .1, .3]];
+    return [
+      P('porcelain', (x, y, z) => { const yy = y - cy; return max(box2(L2(x, yy) - 1.3, z, .5, .18, .06), -yy); }, (x, y, z) => set(...COL[cl(floor((1.8 - L2(x, y - cy)) * 7), 0, 6)])),
+      P('porcelain', (x, y, z) => { const yy = y - cy; let d = 1e9; for (const [a, b, c, r] of CL) d = smin(d, sph(x - a, yy - b, z - c, r), .15); return d; }, tint(.96, .97, .99)),
+    ]; } },
+
+  diamond: { base: 'ebony', accent: 'silver', top: B => { const cy = B + 1.22; return [ // DIAMOND
+    P('ice', (x, y, z) => { const yy = y - cy; fold(x, z, 8); const d = max(yy - .55, PX - 1.2, PX * .669 + yy * .743 - .877, PX * .7071 - yy * .7071 - .8485); fold(x, z, 8, PI / 8); return max(d, PX * .4 + yy * .917 - .8); }), // table, crown, girdle, pavilion, star facets
+    P('silver', (x, y, z) => { fold(x, z, 4, PI / 4); return cap(PX, y - cy, PZ, .22, -1.2, 0, 1.12, .08, 0, .055); }),   // four prongs
+  ]; } },
+
+  infinity: { base: 'ebony', accent: 'gold', top: B => { const cy = B + 1.35; // FOREVER
+    const T = tube(Array.from({ length: 49 }, (_, i) => { const t = i / 48 * TAU, s = sin(t), c = cos(t), k = 1 + s * s; return [1.55 * c / k, 1.55 * s * c / k, .22 * s, .17]; })); // a lemniscate, crossing over itself
+    return [P('gold', (x, y, z) => min(T(x, y - cy, z), cylY(x, y - B - .62, z, .09, .62)))];
+  } },
+
+  yinyang: { base: 'marbleW', accent: 'gold', top: B => { const cy = B + 1.5, Rr = 1.15; return [ // BALANCE
+    P('porcelain', (x, y, z) => cylZ(x, y - cy, z, Rr, .2, .1), (x, y, z) => { const v = (y - cy) / Rr, u = x / Rr; let dark = u < 0;
+      if (L2(u, v - .5) < .5) dark = false; if (L2(u, v + .5) < .5) dark = true; if (L2(u, v - .5) < .14) dark = true; if (L2(u, v + .5) < .14) dark = false;
+      if (dark) { set(.012, .012, .014); MID = MAT.lacquer; } else set(.93, .91, .87); }),
+    P('gold', (x, y, z) => min(torZ(x, y - cy, z, Rr, .07), cylY(x, y - B - .2, z, .1, .2))),
+  ]; } },
+
+  thunder: { base: 'lapis', accent: 'gold', top: B => { // THUNDER
+    const BOLT = [[.15, 2.75], [-.45, 1.3], [.05, 1.35], [-.3, .02], [.58, 1.62], [.06, 1.56], [.62, 2.75]];
+    const S = [[0, 3.15, 0, .6], [-.72, 2.85, .05, .46], [.75, 2.9, 0, .48], [-.3, 3.5, -.05, .44], [.36, 3.55, .05, .46], [0, 2.8, .15, .5]];
+    return [
+      P('gold', (x, y, z) => ext(poly2(x, y - B, BOLT), z, .13, .05), () => { EM = .55; }),
+      P('lacquer', (x, y, z) => { const yy = y - B; let d = 1e9; for (const [a, b, c, r] of S) d = smin(d, sph(x - a, yy - b, (z - c) * 1.2, r), .2); return d / 1.1; }, tint(.2, .21, .25)),  // a storm cloud
+    ]; } },
+
+  gift: { base: 'walnut', accent: 'gold', top: B => { // PRESENT
+    const L = (x, y, z) => [cos(.4) * x + sin(.4) * z, y - B, -sin(.4) * x + cos(.4) * z];
+    return [
+      P('lacquer', (x, y, z) => { const [u, v, w] = L(x, y, z); return box(u, v - .85, w, .95, .85, .95, .06); }, tint(.04, .2, .4)),
+      P('gold', (x, y, z) => { const [u, v, w] = L(x, y, z); let d = max(box(u, v - .85, w, .97, .87, .97, .06), min(abs(u) - .17, abs(w) - .17));   // ribbon
+        for (const sx of [-1, 1]) { rot(u - sx * .3, v - 1.95, sx * .55); d = min(d, L2(L2(QX, QY) - .3, w * 1.4) / 1.4 - .065); }   // the bow
+        return min(d, sph(u, v - 1.76, w, .15)); }),
+    ]; } },
+
+  alarm: { base: 'ebony', accent: 'gold', top: B => { const cy = B + 1.48; return [ // MORNING
+    P('copper', (x, y, z) => { const yy = y - cy, fx = abs(x); return min(cylZ(x, yy, z, 1.0, .36, .12), cap(fx, yy, z, .55, -.75, 0, .8, -1.35, 0, .085), max(sph(fx - .6, yy - .95, z, .4), .75 - yy), cap(x, yy, z, 0, .95, 0, 0, 1.32, 0, .07), sph(x, yy - 1.36, z, .1)); }),
+    P('porcelain', (x, y, z) => cylZ(x, y - cy, z - .35, .84, .04, .02), (x, y, z) => { const yy = y - cy, r = L2(x, yy), a = atan2(yy, x), s = PI / 6, b = a - Math.round(a / s) * s; set(.94, .92, .86);
+      if (r > .66 && r < .78 && abs(b) * r < .04) set(.05, .05, .05);
+      const seg = (dx, dy, len, w) => { const t = cl((x * dx + yy * dy) / len, 0, 1); return L2(x - dx * t * len, yy - dy * t * len) < w; };
+      if (seg(0, 1, .6, .035) || seg(-.5, -.866, .42, .05) || r < .07) set(.04, .04, .04); }),   // seven o'clock
+  ]; } },
+});
+
 // ── carving: find the surface on a voxel grid, pull each surface voxel onto it, make it a splat ──
 const FLOATS = 20; // per splat: centre xyz, opacity | covariance xx xy xz yy | yz zz, random, material | albedo rgb, occlusion | normal xyz, emission
 function carve(name, h = .09) {

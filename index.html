@@ -137,22 +137,43 @@ const blobTex = radialTex([[0, 'rgba(0,0,0,.85)'], [.35, 'rgba(0,0,0,.55)'], [.7
 const glowTex = radialTex([[0, 'rgba(255,255,255,1)'], [.2, 'rgba(255,255,255,.55)'], [.55, 'rgba(255,255,255,.12)'], [1, 'rgba(255,255,255,0)']]);
 const poolTex = radialTex(Array.from({ length: 12 }, (_, i) => { const t = i / 11; return [t, `rgba(255,255,255,${Math.exp(-t * t * 5.5) * (1 - t)})`]; }), 256); // a gaussian pool of light, no edge
 
-// ═══════════════════════════ THE PIECES: word, how it sounds in your fingers, which level it belongs to ═══════════════════════════
+// ═══════════════════════════ THE PIECES: word, how it sounds in your fingers, how sly the clue is (1 literal · 2 association · 3 sly) ═══════════════════════════
 const PIECES = {
-  crown: ['KING', 'metal'], key: ['KEY', 'metal'], sun: ['SUN', 'metal'],
-  star: ['STAR', 'metal'], apple: ['APPLE', 'glass'], flame: ['FIRE', 'glass'], hourglass: ['TIME', 'wood'],
-  moon: ['MOON', 'stone'], bell: ['BELL', 'bell'], heart: ['LOVE', 'glass'], umbrella: ['RAIN', 'wood'], horseshoe: ['LUCK', 'metal'],
-  skep: ['HONEY', 'glass'], planet: ['SPACE', 'stone'], bulb: ['IDEA', 'glass'], anchor: ['SHIP', 'metal'], padlock: ['SAFE', 'metal'], ghost: ['BOO', 'glass'],
-  notes: ['MUSIC', 'wood'], bone: ['DOG', 'stone'], rook: ['TOWER', 'stone'], acorn: ['OAK', 'wood'], snail: ['SLOW', 'metal'], nose: ['SMELL', 'stone'], crystal: ['COLD', 'glass'],
+  crown: ['KING', 'metal', 1], key: ['KEY', 'metal', 1], sun: ['SUN', 'metal', 1], star: ['STAR', 'metal', 1], apple: ['APPLE', 'glass', 1], flame: ['FIRE', 'glass', 1],
+  hourglass: ['TIME', 'wood', 1], moon: ['MOON', 'stone', 1], bell: ['BELL', 'bell', 1], heart: ['LOVE', 'glass', 2], umbrella: ['RAIN', 'wood', 2], horseshoe: ['LUCK', 'metal', 2],
+  skep: ['HONEY', 'glass', 2], planet: ['SPACE', 'stone', 2], bulb: ['IDEA', 'glass', 2], anchor: ['SHIP', 'metal', 2], padlock: ['SAFE', 'metal', 3], ghost: ['BOO', 'glass', 3],
+  notes: ['MUSIC', 'wood', 2], bone: ['DOG', 'stone', 2], rook: ['TOWER', 'stone', 2], acorn: ['OAK', 'wood', 2], snail: ['SLOW', 'metal', 3], nose: ['SMELL', 'stone', 3], crystal: ['COLD', 'glass', 3],
+  // the second set
+  egg: ['EGG', 'glass', 1], teacup: ['TEA', 'glass', 1], eye: ['EYE', 'glass', 1], cat: ['CAT', 'stone', 1], fish: ['FISH', 'metal', 1], house: ['HOME', 'glass', 1], pawn: ['PAWN', 'wood', 1],
+  queen: ['QUEEN', 'stone', 1], bishop: ['BISHOP', 'wood', 1], cloud: ['CLOUD', 'glass', 1], rocket: ['ROCKET', 'metal', 1], guitar: ['GUITAR', 'wood', 1], cherry: ['CHERRY', 'glass', 1],
+  banana: ['BANANA', 'glass', 1], pumpkin: ['PUMPKIN', 'glass', 1], snowman: ['SNOWMAN', 'glass', 1], rainbow: ['RAINBOW', 'glass', 1], diamond: ['DIAMOND', 'glass', 1],
+  pyramid: ['EGYPT', 'stone', 2], eiffel: ['PARIS', 'metal', 2], torii: ['JAPAN', 'wood', 2], sombrero: ['MEXICO', 'wood', 2], maple: ['CANADA', 'wood', 2], witchhat: ['WITCH', 'wood', 2],
+  globe: ['WORLD', 'stone', 2], phone: ['HELLO', 'wood', 2], dice: ['CHANCE', 'stone', 2], cheers: ['CHEERS', 'glass', 2], snowflake: ['WINTER', 'metal', 2], knight: ['KNIGHT', 'metal', 2],
+  gift: ['PRESENT', 'wood', 2], alarm: ['MORNING', 'bell', 2], thunder: ['THUNDER', 'metal', 2], chili: ['HOT', 'wood', 2], dumbbell: ['GYM', 'metal', 2], trophy: ['WIN', 'metal', 2], scissors: ['CUT', 'metal', 2],
+  donut: ['ZERO', 'wood', 3], lemon: ['SOUR', 'glass', 3], sheep: ['SLEEP', 'wood', 3], lion: ['PRIDE', 'metal', 3], cheese: ['MOUSE', 'wood', 3], dove: ['PEACE', 'glass', 3], crystalball: ['FUTURE', 'glass', 3],
+  frog: ['PRINCE', 'stone', 3], butterfly: ['CHANGE', 'glass', 3], penguin: ['TUXEDO', 'wood', 3], infinity: ['FOREVER', 'metal', 3], yinyang: ['BALANCE', 'glass', 3], question: ['WHY', 'metal', 3],
 };
-// Chess names for the five set puzzles: literal first, then associations, then the sly ones. After that, encores drawn at random.
+// Fifteen set puzzles named for a game of chess, using all 75 pieces once: literal first, then associations, then the sly ones.
+// Every puzzle mixes its word lengths (never more than two of a length), so the shape of the grid is a clue too. After these, encores drawn at random.
 const LEVELS = [
   { name: 'Opening', pieces: ['crown', 'key', 'sun'] },
-  { name: 'Development', pieces: ['star', 'apple', 'flame', 'hourglass'] },
-  { name: 'Middlegame', pieces: ['moon', 'bell', 'heart', 'umbrella', 'horseshoe'] },
-  { name: 'Gambit', pieces: ['skep', 'planet', 'bulb', 'anchor', 'padlock', 'ghost'] },
-  { name: 'Endgame', pieces: ['notes', 'bone', 'rook', 'acorn', 'snail', 'nose', 'crystal'] },
+  { name: 'Development', pieces: ['diamond', 'moon', 'cherry', 'cloud'] },
+  { name: 'Castling', pieces: ['queen', 'pawn', 'hourglass', 'guitar'] },
+  { name: 'Fianchetto', pieces: ['apple', 'pumpkin', 'flame', 'knight', 'notes'] },
+  { name: 'Gambit', pieces: ['egg', 'anchor', 'fish', 'alarm', 'dumbbell'] },
+  { name: 'Middlegame', pieces: ['bone', 'pyramid', 'house', 'rocket', 'acorn'] },
+  { name: 'The Fork', pieces: ['dove', 'planet', 'bell', 'banana', 'umbrella'] },
+  { name: 'The Pin', pieces: ['eye', 'rainbow', 'infinity', 'globe', 'sheep'] },
+  { name: 'Skewer', pieces: ['sombrero', 'bulb', 'thunder', 'star', 'crystalball', 'ghost'] },
+  { name: 'Discovery', pieces: ['frog', 'trophy', 'rook', 'heart', 'snowflake'] },
+  { name: 'Sacrifice', pieces: ['witchhat', 'teacup', 'butterfly', 'donut', 'cat', 'penguin'] },
+  { name: 'Zugzwang', pieces: ['dice', 'horseshoe', 'maple', 'nose', 'scissors'] },
+  { name: 'Promotion', pieces: ['chili', 'torii', 'gift', 'snail', 'phone', 'cheers'] },
+  { name: 'Endgame', pieces: ['skep', 'bishop', 'yinyang', 'lion', 'crystal'] },
+  { name: 'Grandmaster', pieces: ['padlock', 'lemon', 'cheese', 'snowman', 'eiffel', 'question'] },
 ];
+const mixed = words => { const c = {}; for (const w of words) c[w.length] = (c[w.length] || 0) + 1; return Math.max(...Object.values(c)) <= 2; }; // no three words of one length
+const givensFor = n => n < 3 ? 0 : n < 8 ? 1 : 2; // letters printed in the grid before you start: none at first, then one, then two
 const ROMAN = n => { let s = '', v = [[10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']]; for (const [k, r] of v) while (n >= k) { s += r; n -= k; } return s; };
 function rng(seed) { let s = seed >>> 0 || 1; return () => { s = (Math.imul(s ^ (s >>> 15), 2246822507) + 0x9e3779b9) >>> 0; return (s >>> 8) / 16777216; }; }
 
@@ -436,11 +457,11 @@ function layout(words, seed = 1, budget = 4000) {
   for (let k = 0; k < Math.min(ws.length, 3); k++) { put(ws[k], 0, 0, 0, 1); go(ws.filter((_, i) => i !== k)); pop(); }
   return best;
 }
-function levelDef(n) { // the five set puzzles, then encores: a random handful of pieces that interlock
+function levelDef(n) { // the set puzzles, then encores: a random handful of pieces that interlock
   if (n < LEVELS.length) return { n, name: LEVELS[n].name, pieces: LEVELS[n].pieces, lay: layout(LEVELS[n].pieces.map(p => PIECES[p][0]), n + 1) };
   const R = rng(n * 7919 + 13), all = Object.keys(PIECES);
-  for (let tries = 0; tries < 80; tries++) { const k = 6 + (R() < .5 ? 1 : 0), pick = all.slice().sort(() => R() - .5).slice(0, k), lay = layout(pick.map(p => PIECES[p][0]), n * 31 + tries, 2500);
-    if (lay && lay.cols <= 9 && lay.rows <= 7) return { n, name: 'Encore', pieces: pick, lay }; }
+  for (let tries = 0; tries < 200; tries++) { const k = 5 + (R() < .6 ? 1 : 0), pick = all.slice().sort(() => R() - .5).slice(0, k), words = pick.map(p => PIECES[p][0]); if (!mixed(words)) continue;
+    const lay = layout(words, n * 31 + tries, 2500); if (lay && lay.cols <= 9 && lay.rows <= 7) return { n, name: 'Encore', pieces: pick, lay }; }
   return levelDef(n % LEVELS.length);
 }
 
@@ -492,7 +513,8 @@ const letterMat = new THREE.ShaderMaterial({ ...PRE, uniforms: { uAtlas: { value
       vec3 c=mix(vec3(1.,.82,.5)*1.5,vec3(.96,.93,.85),smoothstep(.5,1.,ap));c=mix(c,vec3(1.,.87,.6)*1.3,vG.w);
       float a=s*smoothstep(0.,.35,ap);
       if(k>.5&&k<1.5){a*=.5;c=vec3(.8,.75,.66);}       // the little numbers
-      if(k>1.5){a*=.26;c=vec3(.85,.8,.7);}              // a hint, pencilled in
+      if(k>1.5&&k<2.5){a*=.26;c=vec3(.85,.8,.7);}       // a hint, pencilled in
+      if(k>2.5){a*=.82;c=vec3(.84,.76,.6);}            // a letter printed before you start: warmer, a touch quieter than your own
       gl_FragColor=vec4(min(c,vec3(1.))*a,a);}` });
 const letters = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), letterMat, MAXC * 2); letters.renderOrder = 3; letters.frustumCulled = false;
 const lG = new THREE.InstancedBufferAttribute(new Float32Array(MAXC * 2 * 4), 4); lG.setUsage(THREE.DynamicDrawUsage); letters.geometry.setAttribute('aG', lG); letters.count = 0; board.add(letters);
@@ -540,10 +562,11 @@ function updBoard(dt) {
     tR_[c.i * 4] = c.wave; tR_[c.i * 4 + 3] = (c.r * 7 + c.c * 3) % 10 / 10;
     // the letter: pops in with a little overshoot
     if (c.show >= 0 && T >= c.show && !c.shown) { c.shown = T; }
-    if (c.shown || c.ghost) {
-      const k = c.shown ? clamp((T - c.shown) / .45, 0, 1) : 1, kind = c.shown ? 0 : 2, s = c.shown ? (k < 1 ? back(k) : 1) * .64 : .64, fade = c.ap;
+    const given = c.given && T >= c.given;
+    if (c.shown || c.ghost || given) {
+      const t0 = c.shown || (given ? c.given : 0), k = t0 ? clamp((T - t0) / .45, 0, 1) : 1, kind = c.shown ? 0 : given ? 3 : 2, s = t0 ? (k < 1 ? back(k) : 1) * .64 : .64, fade = c.ap;
       _m.compose(_v.set(c.pos.x + sh, c.pos.y - (1 - k) * p * .18, .002), _q.identity(), _v2.setScalar(p * s * Math.max(fade, .001))); letters.setMatrixAt(li, _m);
-      lG.array.set([glyph(c.ch), (c.shown ? k : 1) * fade, kind, c.wave * .9], li * 4); li++;
+      lG.array.set([glyph(c.ch), (t0 ? k : 1) * fade, kind, c.wave * .9], li * 4); li++;
     }
     if (c.num) { _m.compose(_v.set(c.pos.x - p * .31, c.pos.y + p * .3, .002), _q.identity(), _v2.setScalar(p * .22 * Math.max(c.ap, .001))); letters.setMatrixAt(li, _m);
       lG.array.set([26 + (c.num % 10), c.ap * (c.shown ? .4 : 1), 1, 0], li * 4); li++; }
@@ -719,7 +742,8 @@ function judge(pc) {
   if (ok) { pc.slot = own; pc.state = 'win'; pc.t = 0; sfx('right', pc.pos); for (const c of own.cells) c.fl = 1; return; }
   pc.state = 'miss'; pc.t = 0; pc.misses++; S.misses++; sfx('wrong', pc.pos); BD.shake = .4;
   for (const c of pc.slot.cells) if (!c.shown) c.fl = -1;
-  if (pc.misses >= 3 && own && !own.cells[0].shown && !own.cells[0].ghost) later(1.2, () => { own.cells[0].ghost = 1; sfx('hint', slotWorld(own, new V())); }); // three misses: the first letter, pencilled in
+  const gc = own && own.cells.find(c => !c.shown && !c.given && !c.ghost);
+  if (pc.misses >= 3 && gc && !own.cells.some(c => c.ghost)) later(1.2, () => { gc.ghost = 1; sfx('hint', slotWorld(own, new V())); }); // three misses: a letter, pencilled in
 }
 function dissolve(pc) { // the piece pours itself into its word: every gaussian picks a letter and flies there
   const U = pc.sp.mat.uniforms, s = pc.slot; s.solved = true; S.solvedAny = true;
@@ -804,7 +828,10 @@ function clearLevel() { for (const pc of PCS) dropPiece(pc); PCS.length = 0; TL.
 function startLevel(n) {
   clearLevel(); S.level = n; if (S.running) SAVE.set({ level: n });
   const def = levelDef(n); buildBoard(def);
-  for (const c of BD.cells) { c.ap = 0; c.shown = 0; c.show = -1; c.ghost = 0; c.fl = 0; c.tg = 0; c.so = 0; }
+  for (const c of BD.cells) { c.ap = 0; c.shown = 0; c.show = -1; c.ghost = 0; c.given = 0; c.fl = 0; c.tg = 0; c.so = 0; }
+  // later puzzles print a letter or two before you start, in the slyest and longest words, so they never open as pure guesswork
+  const g = n < LEVELS.length ? givensFor(n) : 2, sly = BD.slots.slice().sort((a, b) => PIECES[b.piece][2] - PIECES[a.piece][2] || b.word.length - a.word.length);
+  sly.slice(0, g).forEach((sl, i) => { const c = sl.cells[0].given ? sl.cells[sl.cells.length - 1] : sl.cells[0]; c.given = T + 1.2 + i * .35; later(1.2 + i * .35, () => sfx('letter', c.pos.clone().applyMatrix4(board.matrix), .7, 4 + i)); });
   // the pieces stand in an arc round you, in an order that is not the board's
   const R = rng(n * 131 + 7), ids = def.pieces.slice().sort(() => R() - .5), k = ids.length, span = Math.min(.3 * (k - 1), 1.45);
   ids.forEach((id, i) => { const a = k > 1 ? -span / 2 + span * i / (k - 1) : 0, home = new V(Math.sin(a) * CFG.HOME, 0, -Math.cos(a) * CFG.HOME);
@@ -830,6 +857,7 @@ function updFlow(dt) {
     else if (!S.launched) hint = SIM ? 'Drag it onto its word, and let go' : 'Point it at its word, and let go';
     else if (!S.solvedAny && S.misses) hint = 'Every piece is one word';
   }
+  if (S.running && (S.level === 3 || S.level === 8) && (S.phase === 'play' || S.phase === 'intro') && T - S.start > 1.2 && T - S.start < 7) hint = S.level === 3 ? 'A letter to start you off' : 'Two letters to start you off';
   if (hint !== hintCard.txt) { if (hintCard.k < .02) { hintCard.txt = hint; if (hint) drawHint(hint); } hintCard.want = 0; } else hintCard.want = hint ? 1 : 0;
   for (const c of [title, hintCard]) { c.k += (c.want - c.k) * damp(dt, .25); c.m.material.opacity = c.k; c.m.visible = c.k > .005; }
 }
@@ -909,15 +937,15 @@ if (SIM) {
 const LABS = { list: [], yaw: .4, pitch: .25, dist: .5, drag: null, target: new V() };
 function setupLab() {
   $('ov').classList.add('hide'); placeStage(...HOME_POSE); tray.mesh.visible = false; for (const m of stage.children) if (m.geometry && m.geometry.type === 'TubeGeometry') m.visible = false;
-  const names = LAB === '' || LAB === 'all' ? Object.keys(PIECES) : LAB.split(','), cols = Math.ceil(Math.sqrt(names.length)), sp = .085;
+  const names = LAB === '' || LAB === 'all' ? Object.keys(PIECES) : LAB.split(','), cols = names.length <= 6 ? names.length : Math.ceil(Math.sqrt(names.length)), sp = names.length <= 6 ? .1 : .085; // a few: one row; many: a grid
   names.forEach((n, i) => whenCarved(n, msg => { const s = splatMesh(msg); SPL.push(s); s.mesh.scale.setScalar(CFG.PIECE); s.mesh.position.set((i % cols - (cols - 1) / 2) * sp, 0, (Math.floor(i / cols) - (Math.ceil(names.length / cols) - 1) / 2) * sp); stage.add(s.mesh); LABS.list.push(s); }));
-  LABS.dist = names.length > 4 ? .62 : names.length > 1 ? .3 : .2; LABS.target.set(0, names.length > 4 ? 0 : .035, 0); LABS.pitch = names.length > 4 ? .25 : .12; camera.fov = 40; camera.updateProjectionMatrix();
+  LABS.halfW = names.length <= 6 ? (names.length - 1) / 2 * sp + .06 : 0; LABS.dist = names.length > 6 ? .62 : names.length > 1 ? .12 + names.length * .07 : .2; LABS.target.set(0, names.length > 6 ? 0 : .045, 0); LABS.pitch = names.length > 6 ? .25 : .1; camera.fov = 40; camera.updateProjectionMatrix();
   renderer.domElement.addEventListener('pointerdown', e => { LABS.drag = [e.clientX, e.clientY]; }); addEventListener('pointerup', () => { LABS.drag = null; });
   addEventListener('pointermove', e => { if (!LABS.drag) return; LABS.yaw -= (e.clientX - LABS.drag[0]) * .006; LABS.pitch = clamp(LABS.pitch + (e.clientY - LABS.drag[1]) * .004, -.3, 1.4); LABS.drag = [e.clientX, e.clientY]; });
   addEventListener('wheel', e => { LABS.dist = clamp(LABS.dist * Math.exp(e.deltaY * .001), .08, 2); });
   setPhase('lab');
 }
-function updLab() { const { yaw, pitch, dist, target } = LABS; toWorld(camera.position.set(target.x + Math.sin(yaw) * Math.cos(pitch) * dist, target.y + Math.sin(pitch) * dist, target.z + Math.cos(yaw) * Math.cos(pitch) * dist)); camera.lookAt(toWorld(_v.copy(target))); camera.updateMatrixWorld(); }
+function updLab() { const { yaw, pitch, target } = LABS, dist = Math.max(LABS.dist, LABS.halfW / Math.tan(Math.atan(Math.tan(MU.degToRad(camera.fov / 2)) * camera.aspect)) * 1.1); toWorld(camera.position.set(target.x + Math.sin(yaw) * Math.cos(pitch) * dist, target.y + Math.sin(pitch) * dist, target.z + Math.cos(yaw) * Math.cos(pitch) * dist)); camera.lookAt(toWorld(_v.copy(target))); camera.updateMatrixWorld(); }
 window.__X = { EMU, loop, S, BD, PCS, HANDS, CARVE, SPL, startLevel, levelDef, scene, camera, renderer, stage, board, LABS, THREE, solve: w => { const pc = PCS.find(p => p.word === w.toUpperCase()); if (pc) launch(pc, { slot: BD.slots.find(s => s.word === pc.word), cell: null }); }, miss: w => { const pc = PCS.find(p => p.word === w.toUpperCase()); if (pc) launch(pc, { slot: BD.slots.find(s => s.word !== pc.word && !s.solved), cell: null }); } };
 
 if (SIM) __X.drag = async (x0, y0, x1, y1, release = true) => { // test hook: press on (x0, y0), drag to (x1, y1) in 800x600 screen units, optionally let go
