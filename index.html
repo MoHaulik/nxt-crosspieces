@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><title>Crosspieces | WebXR Mixed Reality</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<meta name="description" content="Crosspieces is a free WebXR mixed-reality crossword for Meta Quest 3. No keyboard: every answer is a small carved piece. Pick it up, work out its word, and send it flying into the grid. A NXT/WebXR production.">
+<meta property="og:type" content="website"><meta property="og:title" content="Crosspieces"><meta property="og:description" content="A crossword you solve with your hands. Free WebXR mixed reality for Meta Quest 3. A NXT/WebXR production."><meta name="twitter:card" content="summary">
+<meta name="theme-color" content="#0a0a0b"><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a0a0b'/%3E%3Cg fill='none' stroke='%23d8b46a' stroke-width='1.6'%3E%3Crect x='5' y='12' width='7' height='7' rx='1.5'/%3E%3Crect x='12.5' y='12' width='7' height='7' rx='1.5'/%3E%3Crect x='20' y='12' width='7' height='7' rx='1.5'/%3E%3Crect x='12.5' y='4.5' width='7' height='7' rx='1.5'/%3E%3Crect x='12.5' y='19.5' width='7' height='7' rx='1.5'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&family=Geist:wght@300;400;500&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script>/* dev only: ?manual replaces requestAnimationFrame with a queue that window.__pump(n) flushes, so the page can be stepped while it is in the background */
+if (/[?&]manual/.test(location.search)) { const q = []; let t = 0; window.requestAnimationFrame = cb => { q.push(cb); return q.length; }; window.cancelAnimationFrame = () => { };
+  window.__pump = (n = 1) => { for (let i = 0; i < n; i++) { const cbs = q.splice(0); t += 1000 / 60; window.__fixedDt = 1 / 60; cbs.forEach(cb => { try { cb(t); } catch (e) { console.error(e); } }); window.__fixedDt = 0; } return q.length; }; }</script>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.150.1/examples/jsm/"}}</script>
+<style>
+:root{--bar:clamp(58px,8vh,72px);--ivory:#ece6d6;--gold:#d8b46a;--ink:#0a0a0b}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--ink);color:var(--ivory);font-family:'Cormorant Garamond',Georgia,serif}
+canvas{position:fixed;inset:0;display:block}
+.hide{display:none!important}
+#ov{position:fixed;inset:0;z-index:2;display:flex;flex-direction:column}
+/* the poster is the live scene: the pieces on their tray, rendered behind this overlay */
+.poster{position:relative;flex:1;overflow:hidden}
+.fx{position:absolute;inset:0;pointer-events:none}
+.vig{background:radial-gradient(90% 85% at 66% 50%,transparent 35%,rgba(6,6,7,.78) 100%),linear-gradient(90deg,rgba(6,6,7,.9) 0%,rgba(6,6,7,.55) 34%,transparent 60%)}
+.label{position:absolute;left:clamp(22px,6.4vw,104px);top:50%;translate:0 -50%;max-width:min(88vw,600px);opacity:0;animation:in 1.8s .25s ease-out forwards}
+.no{font:400 clamp(10px,.82vw,12px) 'Geist Mono',ui-monospace,monospace;letter-spacing:.34em;text-transform:uppercase;color:var(--gold)}
+h1{margin:.12em 0 0 -.05em;font:italic 400 clamp(54px,8.6vw,138px)/.92 'Cormorant Garamond',Georgia,serif;letter-spacing:-.012em;white-space:nowrap;color:var(--ivory)}
+h1 b{font-style:normal;font-weight:500;letter-spacing:.02em}
+.rule{width:min(56vw,300px);height:1px;margin:24px 0 20px;background:linear-gradient(90deg,var(--gold),transparent)}
+.sub{font:400 clamp(18px,1.55vw,24px)/1.4 'Cormorant Garamond',Georgia,serif;color:#cfc8b6;text-wrap:balance;max-width:30em}
+.sub i{color:var(--ivory)}
+.cta{margin-top:32px;display:flex;flex-direction:column;align-items:flex-start;gap:14px}
+.row{display:flex;align-items:center;gap:22px;flex-wrap:wrap}
+#go{cursor:pointer;font:500 clamp(12px,.95vw,14px) 'Geist Mono',ui-monospace,monospace;letter-spacing:.36em;padding:1.25em 2.2em 1.2em 2.56em;color:#141109;border:0;border-radius:999px;
+  background:linear-gradient(180deg,#f3dfae,#d4ac62 52%,#b88e45);box-shadow:0 0 0 1px rgba(255,236,190,.35) inset,0 12px 40px rgba(0,0,0,.6),0 0 60px rgba(216,180,106,.22);
+  transition:transform .35s cubic-bezier(.2,1.5,.4,1),filter .3s}
+#go:hover:not(:disabled),#go:focus-visible{transform:translateY(-2px);filter:brightness(1.08);outline:none}
+#go:active:not(:disabled){transform:translateY(1px)}
+#go:disabled{cursor:wait;filter:saturate(.25) brightness(.55)}
+#restart{cursor:pointer;background:none;border:0;padding:4px 0;font:400 clamp(10px,.8vw,12px) 'Geist Mono',monospace;letter-spacing:.24em;text-transform:uppercase;color:rgba(236,230,214,.5);border-bottom:1px solid rgba(236,230,214,.2)}
+#restart:hover{color:var(--ivory)}
+#msg{font:400 clamp(10px,.78vw,12px)/1.75 'Geist Mono',ui-monospace,monospace;letter-spacing:.16em;text-transform:uppercase;color:rgba(236,230,214,.55);max-width:440px}
+/* studio footer, same as the other NXT games */
+.credit{--k:rgba(255,255,255,.55);position:relative;flex:0 0 var(--bar);display:flex;align-items:center;gap:18px;padding:0 clamp(16px,3.2vw,48px);background:#000;color:#fff;text-decoration:none;font:400 13px/1 Geist,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.credit::before{content:'';position:absolute;inset:0 0 auto;height:1px;background:rgba(255,255,255,.09)}
+.credit img{height:40px;width:40px;border-radius:10px;filter:grayscale(1) contrast(1.1);opacity:.9;transition:opacity .4s}
+.credit .who{display:flex;align-items:baseline;gap:12px;white-space:nowrap}
+.credit .name{font-weight:500;font-size:clamp(13px,1.05vw,15px);letter-spacing:-.01em;color:#f4f4f5}
+.credit .mono,.credit .url{font:400 clamp(9.5px,.72vw,11px)/1 'Geist Mono',ui-monospace,monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--k)}
+.credit .line{flex:1;height:1px;min-width:24px;background:rgba(255,255,255,.14) linear-gradient(90deg,transparent,#fff,transparent) no-repeat -40% 0/30% 100%;transition:background-position 1s cubic-bezier(.3,.7,.2,1)}
+.credit .go{display:flex;align-items:baseline;gap:12px;white-space:nowrap}
+.credit .url{color:#f4f4f5;letter-spacing:.04em;text-transform:none;font-size:clamp(11px,.85vw,12.5px)}
+.credit .arr{display:inline-block;margin-left:4px;transition:translate .35s cubic-bezier(.3,.7,.2,1)}
+.credit:hover .line,.credit:focus-visible .line{background-position:140% 0}
+.credit:hover .arr,.credit:focus-visible .arr{translate:2px -2px}
+.credit:hover img,.credit:focus-visible img{opacity:1}
+@media (max-aspect-ratio:1/1){.label{top:auto;bottom:5vh;translate:none}.vig{background:linear-gradient(0deg,rgba(6,6,7,.94) 30%,transparent 72%)}}
+@media (max-width:760px){.credit .mono,.credit .line{display:none}.credit .go{margin-left:auto}}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important}}
+@keyframes in{to{opacity:1}}
+</style></head><body>
+<div id="ov">
+  <main class="poster">
+    <i class="fx vig"></i>
+    <div class="label">
+      <div class="no">A crossword for your hands &middot; Mixed reality</div>
+      <h1>Cross<b>pieces</b></h1>
+      <div class="rule"></div>
+      <div class="sub">No keyboard. Every answer is a small carved piece on the table in front of you. <i>Pick one up, work out its word, and send it flying into the grid.</i></div>
+      <div class="cta"><div class="row"><button id="go" disabled>CARVING</button><button id="restart" class="hide">Start over</button></div><div id="msg"></div></div>
+    </div>
+  </main>
+  <a class="credit" id="nxt" href="https://www.nxtwebxr.com/?ref=crosspieces" aria-label="A NXT/WebXR production. Explore more free WebXR experiences on nxtwebxr.com">
+    <img src="nxtwebxr.png" alt="" width="160" height="160">
+    <span class="who"><span class="name">A NXT/WebXR production</span><span class="mono">Crosspieces · 2026</span></span>
+    <i class="line"></i>
+    <span class="go"><span class="mono">More free WebXR experiences</span><span class="url">nxtwebxr.com<span class="arr">↗</span></span></span>
+  </a>
+</div>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { clone as skClone } from 'three/addons/utils/SkeletonUtils.js';
+
+await Promise.race([Promise.all(['600 90px "Cormorant Garamond"', 'italic 500 90px "Cormorant Garamond"', 'italic 400 90px "Cormorant Garamond"', '500 30px "Geist Mono"', '400 30px "Geist Mono"'].map(f => document.fonts.load(f))), new Promise(r => setTimeout(r, 3000))]).catch(() => { }); // the grid, the title and the hints are painted with these
+
+// ═══════════════════════════ CONFIG ═══════════════════════════
+const QS = new URLSearchParams(location.search), SIM = QS.has('sim'), LAB = QS.get('lab'); // ?sim: play at a desk with the mouse · ?lab or ?lab=crown: look at the pieces
+const C = THREE.Color, V = THREE.Vector3, Qn = THREE.Quaternion, MU = THREE.MathUtils;
+const clamp = MU.clamp, lerp = MU.lerp, rand = (a, b) => a + Math.random() * (b - a), damp = (dt, tc) => 1 - Math.exp(-dt / tc);
+const s01 = p => { p = clamp(p, 0, 1); return p * p * (3 - 2 * p); }, eio = p => { p = clamp(p, 0, 1); return p < .5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2; };
+const back = p => { p = clamp(p, 0, 1); const c = 1.9; return 1 + (c + 1) * Math.pow(p - 1, 3) + c * Math.pow(p - 1, 2); }; // overshoots, then settles
+const _v = new V(), _v2 = new V(), _v3 = new V(), _v4 = new V(), _q = new Qn(), _q2 = new Qn(), _m = new THREE.Matrix4();
+const UP = new V(0, 1, 0), XA = new V(1, 0, 0), YA = new V(0, 1, 0), ZA = new V(0, 0, 1);
+
+// Everything lives in STAGE space: origin on the tray plane straight below your eyes, -z forward, y up, metres.
+const CFG = {
+  EYE: .5,                                   // your eyes above the tray top
+  TRAY: { r0: .28, r1: .53, half: .86, t: .026 }, // a curved slab round you: inner and outer radius, half its arc (rad), thickness
+  HOME: .4,                                  // where the pieces stand, radius from you
+  BOARD: { y: .45, z: -1.06, w: .84, h: .52, pitch: .102 }, // the crossword floats here, facing your eyes
+  PIECE: 1.3,                                // piece scale (carved 6-7.5 cm tall, so they stand 8-10 cm)
+  GRAB: { on: .024, off: .045, reach: .032 }, // pinch closes / opens (thumb to finger, m), how far outside a piece a pinch still takes it
+  AIM: { tol: .78, hold: .25 },              // aim assist (in cells) and how much better a new word must be to steal the aim
+  DIM: .34,                                  // how far the real room is dimmed in the headset
+};
+
+// ?emu: a Quest 3 with tracked hands, emulated by Meta's IWER, so the real WebXR path can be tried at a desk (dev only)
+const EMU = QS.has('emu') ? await import('https://cdn.jsdelivr.net/npm/iwer@2.4.0/build/iwer.module.js').then(({ XRDevice, metaQuest3 }) => { const d = new XRDevice(metaQuest3); d.installRuntime({ forceInstall: true }); d.primaryInputMode = 'hand'; d.position.set(0, 1.62, 0); return d; }).catch(e => { console.warn('emulator', e); return null; }) : null;
+
+// ═══════════════════════════ CORE ═══════════════════════════
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, .02, 40); scene.add(camera);
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(innerWidth, innerHeight);
+renderer.setClearColor(0x000000, 0); renderer.xr.enabled = true; renderer.xr.setReferenceSpaceType('local-floor'); renderer.xr.setFoveation(.25);
+renderer.outputEncoding = THREE.sRGBEncoding; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1;
+document.body.prepend(renderer.domElement);
+addEventListener('resize', () => { if (renderer.xr.isPresenting) return; camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+const $ = id => document.getElementById(id);
+// Pure light: adds colour and leaves alpha alone, so in the headset it glows over your room instead of blacking it out
+const ADD = { transparent: true, depthWrite: false, blending: THREE.CustomBlending, blendSrc: THREE.SrcAlphaFactor, blendDst: THREE.OneFactor, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor };
+// Premultiplied blending: rgb ADDS light, alpha DIMS passthrough. Splats, tiles, shadows and the dimmed room all use it.
+const PRE = { transparent: true, depthWrite: false, blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor, blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor };
+let T = 0; const clock = new THREE.Clock();
+const stage = new THREE.Group(); scene.add(stage);
+const stageQi = new Qn();
+const toStage = v => stage.worldToLocal(v), toWorld = v => stage.localToWorld(v);
+const EYE = new V(0, CFG.EYE, 0);
+const SU = { uTime: { value: 0 }, uView: { value: new THREE.Vector2(1, 1) }, uEnv: { value: new THREE.Matrix3() }, uExpo: { value: 1 } }; // shared by every splat
+const S = { phase: 'boot', t: 0, level: 0, xr: false, running: false, hint: 0, misses: 0, start: 0, launched: 0, grabbed: 0, solvedAny: false };
+function setPhase(p) { S.phase = p; S.t = 0; }
+const SAVE = { get() { try { return JSON.parse(localStorage.getItem('crosspieces.v1')) || {}; } catch (e) { return {}; } }, set(o) { try { localStorage.setItem('crosspieces.v1', JSON.stringify({ ...SAVE.get(), ...o })); } catch (e) { } } };
+
+function ctex(w, h, srgb = true) { const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const tex = new THREE.CanvasTexture(cv); if (srgb) tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 8; return { cv, ctx: cv.getContext('2d'), tex }; }
+function radialTex(stops, size = 128) { const { ctx, tex } = ctex(size, size); const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2); stops.forEach(([o, c]) => g.addColorStop(o, c)); ctx.fillStyle = g; ctx.fillRect(0, 0, size, size); return tex; }
+const blobTex = radialTex([[0, 'rgba(0,0,0,.85)'], [.35, 'rgba(0,0,0,.55)'], [.7, 'rgba(0,0,0,.15)'], [1, 'rgba(0,0,0,0)']]);
+const glowTex = radialTex([[0, 'rgba(255,255,255,1)'], [.2, 'rgba(255,255,255,.55)'], [.55, 'rgba(255,255,255,.12)'], [1, 'rgba(255,255,255,0)']]);
+const poolTex = radialTex(Array.from({ length: 12 }, (_, i) => { const t = i / 11; return [t, `rgba(255,255,255,${Math.exp(-t * t * 5.5) * (1 - t)})`]; }), 256); // a gaussian pool of light, no edge
+
+// ═══════════════════════════ THE PIECES: word, how it sounds in your fingers, which level it belongs to ═══════════════════════════
+const PIECES = {
+  crown: ['KING', 'metal'], key: ['KEY', 'metal'], sun: ['SUN', 'metal'],
+  star: ['STAR', 'metal'], apple: ['APPLE', 'glass'], flame: ['FIRE', 'glass'], hourglass: ['TIME', 'wood'],
+  moon: ['MOON', 'stone'], bell: ['BELL', 'bell'], heart: ['LOVE', 'glass'], umbrella: ['RAIN', 'wood'], horseshoe: ['LUCK', 'metal'],
+  skep: ['HONEY', 'glass'], planet: ['SPACE', 'stone'], bulb: ['IDEA', 'glass'], anchor: ['SHIP', 'metal'], padlock: ['SAFE', 'metal'], ghost: ['BOO', 'glass'],
+  notes: ['MUSIC', 'wood'], bone: ['DOG', 'stone'], rook: ['TOWER', 'stone'], acorn: ['OAK', 'wood'], snail: ['SLOW', 'metal'], nose: ['SMELL', 'stone'], crystal: ['COLD', 'glass'],
+};
+// Chess names for the five set puzzles: literal first, then associations, then the sly ones. After that, encores drawn at random.
+const LEVELS = [
+  { name: 'Opening', pieces: ['crown', 'key', 'sun'] },
+  { name: 'Development', pieces: ['star', 'apple', 'flame', 'hourglass'] },
+  { name: 'Middlegame', pieces: ['moon', 'bell', 'heart', 'umbrella', 'horseshoe'] },
+  { name: 'Gambit', pieces: ['skep', 'planet', 'bulb', 'anchor', 'padlock', 'ghost'] },
+  { name: 'Endgame', pieces: ['notes', 'bone', 'rook', 'acorn', 'snail', 'nose', 'crystal'] },
+];
+const ROMAN = n => { let s = '', v = [[10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']]; for (const [k, r] of v) while (n >= k) { s += r; n -= k; } return s; };
+function rng(seed) { let s = seed >>> 0 || 1; return () => { s = (Math.imul(s ^ (s >>> 15), 2246822507) + 0x9e3779b9) >>> 0; return (s >>> 8) / 16777216; }; }
+
+// ═══════════════════════════ AUDIO: everything is synthesized. Compressed bus, HRTF spatial SFX, a generated room ═══════════════════════════
+const A = { ctx: null };
+function audioInit() {
+  if (A.ctx) { A.ctx.resume(); return; }
+  const c = A.ctx = new (window.AudioContext || window.webkitAudioContext)();
+  A.comp = c.createDynamicsCompressor(); A.comp.threshold.value = -16; A.comp.knee.value = 12; A.comp.ratio.value = 4; A.comp.attack.value = .003; A.comp.release.value = .2; A.comp.connect(c.destination);
+  A.sfx = c.createGain(); A.sfx.connect(A.comp);
+  const n = c.sampleRate * 2 | 0; A.nb = c.createBuffer(1, n, c.sampleRate); const d = A.nb.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  const ir = c.createBuffer(2, c.sampleRate * 2.8 | 0, c.sampleRate); // a quiet gallery
+  for (let ch = 0; ch < 2; ch++) { const b = ir.getChannelData(ch); let lp = 0; for (let i = 0; i < b.length; i++) { const t = i / b.length; lp += ((Math.random() * 2 - 1) - lp) * (.5 - .4 * t); b[i] = lp * Math.pow(1 - t, 3.2) * (i < 600 ? i / 600 : 1); } }
+  A.rev = c.createConvolver(); A.rev.buffer = ir; A.send = c.createGain(); A.send.gain.value = .32; A.sfx.connect(A.send).connect(A.rev); const rg = c.createGain(); rg.gain.value = .8; A.rev.connect(rg).connect(A.comp);
+  // a bed you barely hear: a soft open fifth that breathes, and air
+  A.amb = c.createGain(); A.amb.gain.value = 0; A.amb.connect(A.comp); A.amb.connect(A.send);
+  const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 520; lp.Q.value = .4; lp.connect(A.amb);
+  for (const [f, g] of [[73.4, .5], [110, .32], [146.8, .22], [220.4, .08]]) { const o = c.createOscillator(); o.type = 'triangle'; o.frequency.value = f; const gn = c.createGain(); gn.gain.value = g; const lf = c.createOscillator(); lf.frequency.value = .05 + Math.random() * .07; const lg = c.createGain(); lg.gain.value = g * .5; lf.connect(lg).connect(gn.gain); o.connect(gn).connect(lp); o.start(); lf.start(); }
+  const s = c.createBufferSource(); s.buffer = A.nb; s.loop = true; const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = .5; const ng = c.createGain(); ng.gain.value = .05; s.connect(bp).connect(ng).connect(A.amb); s.start();
+}
+function out(p) { if (!p) return A.sfx; const pn = A.ctx.createPanner(); pn.panningModel = 'HRTF'; pn.distanceModel = 'inverse'; pn.refDistance = .5; pn.rolloffFactor = .8;
+  toWorld(_v4.copy(p)); pn.positionX.value = _v4.x; pn.positionY.value = _v4.y; pn.positionZ.value = _v4.z; pn.connect(A.sfx); return pn; } // p is in STAGE space
+function tone(o, type, f, f2, d, g, t = 0, a = .004) { const c = A.ctx, t0 = c.currentTime + t, os = c.createOscillator(), gn = c.createGain(); os.type = type; os.frequency.setValueAtTime(f, t0);
+  if (f2) os.frequency.exponentialRampToValueAtTime(f2, t0 + d); gn.gain.setValueAtTime(.0001, t0); gn.gain.exponentialRampToValueAtTime(Math.max(g, .0002), t0 + a); gn.gain.exponentialRampToValueAtTime(.0001, t0 + d);
+  os.connect(gn).connect(o); os.start(t0); os.stop(t0 + d + .03); }
+function noise(o, d, g, type = 'highpass', f = 1000, t = 0, f2, q = 1, a = 0) { const c = A.ctx, t0 = c.currentTime + t, s = c.createBufferSource(), fl = c.createBiquadFilter(), gn = c.createGain(); s.buffer = A.nb;
+  fl.type = type; fl.Q.value = q; fl.frequency.setValueAtTime(f, t0); if (f2) fl.frequency.exponentialRampToValueAtTime(f2, t0 + d);
+  if (a) { gn.gain.setValueAtTime(.0001, t0); gn.gain.exponentialRampToValueAtTime(Math.max(g, .0002), t0 + a); } else gn.gain.setValueAtTime(Math.max(g, .0002), t0); gn.gain.exponentialRampToValueAtTime(.0001, t0 + d);
+  s.connect(fl).connect(gn).connect(o); s.start(t0, Math.random() * 1.5); s.stop(t0 + d + .02); }
+const bellish = (o, f, d, g, t = 0) => [[1, 1], [2.76, .35], [5.4, .16], [8.93, .07]].forEach(([k, a]) => tone(o, 'sine', f * k, 0, d / Math.sqrt(k), g * a, t, .002));
+const PENTA = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24];
+function sfx(type, p, x = 1, y = 0) {
+  if (!A.ctx) return; const o = out(p), r = rand(.97, 1.03), B = A.sfx;
+  switch (type) {
+    case 'hover': tone(o, 'sine', 2100 * r + y * 90, 0, .05, .018 * x); break;
+    case 'pick': // a material you can hear: metal rings, stone clicks, wood knocks, glass sings
+      if (y === 'metal') { bellish(o, 1320 * r, .5, .07); noise(o, .008, .25, 'highpass', 4000); }
+      else if (y === 'bell') { bellish(o, 880 * r, 1.4, .12); bellish(o, 1320 * r, .9, .05, .01); }
+      else if (y === 'glass') { [2400, 3810, 5900].forEach((f, i) => tone(o, 'sine', f * r, 0, .5 - i * .1, .06 / (i + 1))); noise(o, .006, .2, 'highpass', 5000); }
+      else if (y === 'wood') { noise(o, .03, .45, 'bandpass', 900 * r, 0, 0, 2.5); tone(o, 'sine', 420 * r, 300, .07, .18); }
+      else { noise(o, .012, .55, 'bandpass', 2600 * r, 0, 0, 1.5); tone(o, 'sine', 980 * r, 760, .05, .1); } break;
+    case 'aim': tone(o, 'sine', 1180 * r, 1480, .07, .035); tone(o, 'sine', 2360 * r, 0, .05, .012, .02); break;
+    case 'launch': noise(o, .42, .28, 'bandpass', 520, 0, 2600, 1.4, .06); tone(o, 'sine', 330, 660, .3, .06, 0, .04); break;
+    case 'dock': noise(o, .05, .25, 'lowpass', 1200); tone(o, 'sine', 520 * r, 380, .1, .1); break;
+    case 'right': [0, 4, 7, 12].forEach((n, i) => bellish(B, 523.25 * 2 ** (n / 12), 1.6, .05, i * .07)); noise(B, .5, .04, 'highpass', 6000, .05, 0, 1, .1); break;
+    case 'letter': { const f = 523.25 * 2 ** (PENTA[y % PENTA.length] / 12); tone(o, 'triangle', f, 0, .5, .05 * x); tone(o, 'sine', f * 2, 0, .25, .02 * x); break; }
+    case 'wrong': tone(o, 'sine', 196 * r, 150, .22, .2); noise(o, .06, .3, 'lowpass', 600); tone(o, 'triangle', 311, 0, .18, .05, .05); tone(o, 'triangle', 293.7, 0, .3, .05, .2); break;
+    case 'return': noise(o, .45, .18, 'bandpass', 2200, 0, 500, 1.2, .05); break;
+    case 'settle': if (y === 'metal' || y === 'bell') bellish(o, 1760 * r, .25, .03 * x); noise(o, .01, .4 * x, 'bandpass', 1900 * r, 0, 0, 2); tone(o, 'sine', 240 * r, 160, .06, .25 * x); break;
+    case 'gather': noise(o, 1.1, .05, 'bandpass', 900, 0, 5200, 3, .5); for (let i = 0; i < 6; i++) tone(o, 'sine', rand(2400, 5200), 0, .25, .012, rand(.3, 1)); break;
+    case 'draw': noise(o, .9, .05, 'bandpass', 3200, 0, 1600, .8, .25); break;
+    case 'solved': [0, 7, 12, 16, 19, 23, 26].forEach((n, i) => { bellish(B, 261.63 * 2 ** (n / 12), 3.2, .045, i * .11); tone(B, 'triangle', 130.81 * 2 ** (n / 12), 0, 2.8, .02, i * .11, .3); }); break;
+    case 'hint': [12, 19].forEach((n, i) => tone(o, 'sine', 523.25 * 2 ** (n / 12), 0, .7, .03, i * .12)); break;
+  }
+}
+function updateListener() {
+  if (!A.ctx) return; const L = A.ctx.listener; camera.getWorldPosition(_v); camera.getWorldDirection(_v4); _v3.copy(UP).applyQuaternion(camera.getWorldQuaternion(_q));
+  if (L.positionX) { L.positionX.value = _v.x; L.positionY.value = _v.y; L.positionZ.value = _v.z; L.forwardX.value = _v4.x; L.forwardY.value = _v4.y; L.forwardZ.value = _v4.z; L.upX.value = _v3.x; L.upY.value = _v3.y; L.upZ.value = _v3.z; }
+}
+
+// ═══════════════════════════ GAUSSIAN SPLATS ═══════════════════════════
+// Each piece is a cloud of oriented 3D Gaussians carved by carver.js. The vertex shader lights every splat (studio softboxes in
+// stage space, metal / dielectric / clear-coat / subsurface / sheen / iridescence), projects its 3D covariance to a 2D ellipse
+// (EWA, with the 0.3 px low-pass and its opacity compensation), and the fragment shader draws the Gaussian. Pieces are sorted
+// back to front on the CPU whenever your viewpoint around them has moved enough to matter.
+const MATP = [ // [metal, roughness, clear coat, subsurface] [iridescence, sheen, specular, -]   (ids match carver.js)
+  [1, .16, 0, 0, 0, 0, 1, 0], [1, .12, 0, 0, 0, 0, 1, 0], [1, .36, 0, 0, 0, 0, 1, 0], [1, .24, 0, 0, 0, 0, 1, 0], [1, .22, 0, 0, 0, 0, 1, 0], // gold silver bronze brass copper
+  [0, .38, 1, 0, 0, 0, 1, 0], [0, .42, .5, .4, 0, 0, 1, 0], [0, .3, .9, .5, 0, 0, 1, 0], [0, .3, 1, 0, 0, 0, 1, 0], [0, .45, .85, 0, 0, 0, 1, 0], // ebony ivory marbleW marbleB walnut
+  [0, .22, .9, .85, 0, 0, 1, 0], [0, .26, .9, .1, 0, 0, 1, 0], [0, .32, .75, .1, 0, 0, 1, 0], [0, .04, 1, .7, 0, 0, 2, 0], [0, .2, .9, .6, 1, 0, 1, 0], // jade malachite lapis ruby moonstone
+  [0, .02, 0, 0, 0, 0, 2.6, 0], [0, .05, 1, .8, 0, 0, 1.5, 0], [0, 1, 0, 0, 0, 1, 0, 0], [0, .14, 1, .25, 0, 0, 1, 0], [0, .08, 1, 0, 0, 0, 1, 0], // glass amber velvet porcelain lacquer
+  [0, 1, 0, 0, 0, 0, 0, 0], [0, .15, 1, .95, 0, 0, 1, 0], [0, .9, 0, .1, 0, 0, .3, 0], [0, 1, 0, 0, 0, 0, 0, 0], [0, .08, 1, .8, 0, 0, 1.6, 0], [0, .04, 1, .4, .25, 0, 2.2, 0], // flame milkglass sand filament roseQuartz ice
+];
+const GLSL_TONE = `vec3 aces(vec3 c){c*=uExpo/.6;const mat3 I=mat3(.59719,.07600,.02840,.35458,.90834,.13383,.04823,.01566,.83777);const mat3 O=mat3(1.60475,-.10208,-.00327,-.53108,1.10813,-.07276,-.07367,-.00605,1.07602);
+  c=I*c;vec3 a=c*(c+.0245786)-.000090537,b=c*(.983729*c+.4329510)+.238081;return clamp(O*(a/b),0.,1.);}
+  vec3 srgb(vec3 c){return mix(c*12.92,1.055*pow(c,vec3(1./2.4))-.055,step(.0031308,c));}
+  vec3 enc(vec3 c){return srgb(aces(c));}`;
+// the studio: three softboxes and an overhead panel in STAGE space (the tray's environment map is baked from the same scene)
+const KEY_DIR = new V(-.548, .632, .548), RIM_DIR = new V(.73, .29, -.62).normalize(), FILL_DIR = new V(.6, .18, .78).normalize();
+const GLSL_STUDIO = `vec3 studio(vec3 r,float ro){float w=ro*ro,k;
+  vec3 c=mix(vec3(.022,.02,.018),vec3(.4,.39,.38),smoothstep(-.45,.12,r.y));c=mix(c,vec3(.6,.6,.62),smoothstep(.35,.95,r.y));   // dark floor, pale walls, a bright ceiling
+  float az=atan(r.x,-r.z);c*=1.-.8*smoothstep(.32+w,.06,abs(az-1.75))*smoothstep(-.35,.05,r.y)-.7*smoothstep(.3+w,.05,abs(az+2.3))*smoothstep(-.35,.05,r.y); // two black flags: metal needs edges
+  k=dot(r,vec3(-.548,.632,.548));c+=vec3(3.4,3.1,2.75)*smoothstep(.8-w*.8,.93-w*.4,k)*(1.-w*.6);
+  k=dot(r,vec3(${RIM_DIR.x.toFixed(4)},${RIM_DIR.y.toFixed(4)},${RIM_DIR.z.toFixed(4)}));c+=vec3(1.5,1.8,2.3)*smoothstep(.88-w*.8,.97-w*.4,k)*(1.-w*.6);
+  k=dot(r,vec3(${FILL_DIR.x.toFixed(4)},${FILL_DIR.y.toFixed(4)},${FILL_DIR.z.toFixed(4)}));c+=vec3(1.,.84,.66)*smoothstep(.9-w*.7,.98-w*.4,k)*(1.-w*.6);
+  c+=vec3(.9)*smoothstep(.8-w*.5,.96,r.y);return c;}`;
+const SPLAT = new THREE.ShaderMaterial({ ...PRE,
+  uniforms: { uData: { value: null }, ...SU, uMP: { value: MATP.map(m => new THREE.Vector4(m[0], m[1], m[2], m[3])) }, uMQ: { value: MATP.map(m => new THREE.Vector4(m[4], m[5], m[6], m[7])) },
+    uTint: { value: new THREE.Vector4(0, 0, 0, 0) }, uGlow: { value: 0 }, uFade: { value: 1 }, uScale: { value: 1 }, uFly: { value: 0 }, uFlyN: { value: 1 }, uFlyT: { value: Array.from({ length: 8 }, () => new V()) },
+    uFlyUp: { value: new V(0, 1, 0) }, uFlyAx: { value: new V(1, 0, 0) }, uGather: { value: 0 }, uFlash: { value: 0 } },
+  vertexShader: `precision highp float;precision highp int;
+    uniform highp sampler2D uData;uniform vec2 uView;uniform mat3 uEnv;uniform float uTime,uExpo;uniform vec4 uMP[26],uMQ[26];
+    uniform vec4 uTint;uniform float uGlow,uFade,uScale,uFly,uFlyN,uGather,uFlash;uniform vec3 uFlyT[8],uFlyUp,uFlyAx;
+    attribute float aIdx;varying vec3 vC;varying float vA;varying vec2 vP;
+    ${GLSL_TONE}${GLSL_STUDIO}
+    void shade(int m,vec3 alb,float ao,float em,vec3 N,vec3 V,float ndv,out vec3 dif,out vec3 spc){
+      if(m==20||m==23){dif=alb*em;spc=vec3(0.);return;}  // fire and filament make their own light
+      vec4 p=uMP[m],q=uMQ[m];vec3 L=vec3(-.548,.632,.548),R=reflect(-V,N);
+      float nl=dot(N,L),fr=pow(1.-ndv,5.),occ=mix(.3,1.,ao);
+      if(p.x>.5){dif=alb*max(nl,0.)*.06*ao;spc=studio(R,p.y)*(alb+(1.-alb)*fr)*occ;}
+      else{float wr=p.w*.7,d=max((nl+wr)/(1.+wr),0.);vec3 hemi=mix(vec3(.05,.045,.04),vec3(.17,.18,.2),N.y*.5+.5);
+        dif=alb*(d*vec3(2.3,2.1,1.85)*mix(.55,1.,ao)+hemi*ao*2.4);
+        dif+=alb*p.w*.3*(hemi*2.+vec3(.5,.45,.4)*max(-nl,0.));   // light carried under the surface
+        dif+=alb*q.y*fr*1.6;                                       // velvet sheen
+        float F=.04*q.z+(1.-.04*q.z)*fr;
+        spc=studio(R,p.y)*F*occ*q.z+studio(R,.05)*(.04+.96*fr)*p.z*occ*.9;dif*=1.-F*.5;
+        if(q.x>0.){spc+=q.x*(.5+.5*cos(6.2832*(vec3(0.,.33,.67)+ndv*1.2+.15)))*pow(1.-ndv,1.5)*.45;dif+=q.x*vec3(.2,.32,.75)*pow(max(dot(-V,L),0.),3.)*.5;}}
+      dif+=alb*em;}
+    void main(){
+      int i=int(aIdx+.5);ivec2 b=ivec2((i&255)*5,i>>8);
+      vec4 t0=texelFetch(uData,b,0),t1=texelFetch(uData,b+ivec2(1,0),0),t2=texelFetch(uData,b+ivec2(2,0),0),t3=texelFetch(uData,b+ivec2(3,0),0),t4=texelFetch(uData,b+ivec2(4,0),0);
+      float rnd=t2.z;int m=int(t2.w+.5);mat3 M=mat3(modelMatrix);
+      vec3 W=(modelMatrix*vec4(t0.xyz,1.)).xyz,N=normalize(M*t4.xyz);
+      float vis=uFade,scl=uScale,fl=0.;bool loose=false;
+      if(m==20)W+=M*vec3(sin(uTime*9.+t0.y*300.+rnd*6.),0.,cos(uTime*7.+t0.y*260.))*.0005*smoothstep(.04,.065,t0.y);  // the flame flickers
+      if(uGather>0.){float t=clamp(uGather*1.7-rnd*.7,0.,1.),e=t*t*(3.-2.*t);                                       // materialise: a swirl of gaussians settles into the piece
+        vec3 o=modelMatrix[3].xyz,q=W-o;float a=e*(2.+3.*rnd),ca=cos(a),sa=sin(a);
+        q=vec3(ca*q.x-sa*q.z,q.y,sa*q.x+ca*q.z)*(1.+e*1.6);W=o+q+vec3(0.,e*(.05+.1*fract(rnd*7.3)),0.);vis*=1.-e;scl*=1.+e;loose=e>0.;}
+      if(uFly>0.){float t=clamp((uFly-rnd*.4)/.6,0.,1.),e=t*t*(3.-2.*t);                                            // dissolve: the piece pours itself into its letters
+        int k=int(min(floor(fract(rnd*13.17+.31)*uFlyN),uFlyN-1.));
+        vec3 tg=uFlyT[k]+(vec3(fract(rnd*41.3),fract(rnd*17.9),fract(rnd*7.7))-.5)*vec3(.04,.04,.008);
+        vec3 mid=mix(W,tg,.5)+uFlyUp*(.04+.1*fract(rnd*3.7))+uFlyAx*(fract(rnd*9.1)-.5)*.14;
+        W=mix(mix(W,mid,e),mix(mid,tg,e),e);scl*=mix(1.,.5,e);fl=sin(t*3.1416);vis*=1.-smoothstep(.82,1.,t);loose=true;}
+      vec3 V=normalize(cameraPosition-W);float ndv=dot(N,V);bool solid=t0.w>.95;
+      if(solid&&ndv<-.2&&!loose){gl_Position=vec4(0.,0.,2.,1.);return;}  // a disc facing away from you is hidden behind the surface anyway
+      if(ndv<0.){N=-N;ndv=-ndv;}
+      vec3 dif,spc;shade(m,t3.rgb,t3.a,t4.w,uEnv*N,uEnv*V,ndv,dif,spc);
+      vec3 rim=pow(1.-ndv,2.5)*(uGlow*vec3(1.,.78,.45)+uTint.a*uTint.rgb*1.6);
+      dif=mix(dif,uTint.rgb*(.18+dot(dif,vec3(.3,.5,.2))),uTint.a*.6);spc+=rim+(fl+uFlash)*vec3(1.,.85,.55)*1.3;
+      vec3 cd=enc(dif),ct=enc(dif+spc);
+      if(solid){vC=ct*t0.w*vis;vA=t0.w*vis;}
+      else{float aE=min(1.,t0.w+(1.-t0.w)*pow(1.-ndv,3.)*.55)*vis;vC=cd*aE+max(ct-cd,0.)*vis;vA=aE;}  // glass: a little colour, plus the light it reflects
+      mat3 Sg=mat3(t1.x,t1.y,t1.z,t1.y,t1.w,t2.x,t1.z,t2.x,t2.y);mat3 Wv=mat3(viewMatrix)*M;mat3 Sv=Wv*Sg*transpose(Wv)*(scl*scl);
+      vec4 cam=viewMatrix*vec4(W,1.),clip=projectionMatrix*cam;
+      if(clip.w<.01){gl_Position=vec4(0.,0.,2.,1.);return;}
+      float z=cam.z,fx=projectionMatrix[0][0]*uView.x*.5,fy=projectionMatrix[1][1]*uView.y*.5;
+      mat3 J=mat3(-fx/z,0.,0.,0.,-fy/z,0.,fx*cam.x/(z*z),fy*cam.y/(z*z),0.);
+      mat3 Tc=J*Sv*transpose(J);float a=Tc[0][0],bb=Tc[0][1],d=Tc[1][1],det0=a*d-bb*bb;a+=.3;d+=.3;float det1=a*d-bb*bb,comp=sqrt(max(det0,0.)/det1);
+      vC*=comp;vA*=comp;
+      float mi=.5*(a+d),rd=length(vec2(.5*(a-d),bb)),l1=mi+rd,l2=max(mi-rd,.05);
+      vec2 v1=abs(bb)>1e-7?normalize(vec2(bb,l1-a)):(a>=d?vec2(1.,0.):vec2(0.,1.));
+      vec2 off=(position.x*v1*min(sqrt(l1)*2.6,600.)+position.y*vec2(-v1.y,v1.x)*min(sqrt(l2)*2.6,600.))*2./uView;
+      gl_Position=vec4(clip.xy+off*clip.w,clip.z,clip.w);vP=position.xy*2.6;}`,
+  fragmentShader: `varying vec3 vC;varying float vA;varying vec2 vP;
+    void main(){float r=dot(vP,vP);if(r>6.76)discard;float g=exp(-.5*r);gl_FragColor=vec4(vC*g,vA*g);}` });
+const QUAD = (() => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute([-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, 1, 0], 3)); g.setIndex([0, 1, 2, 0, 2, 3]); return g; })();
+const SHARED_U = ['uTime', 'uView', 'uEnv', 'uExpo'];
+function splatMesh(msg) {
+  const n = msg.count, rows = Math.max(1, Math.ceil(n / 256)), buf = new Float32Array(1280 * rows * 4); buf.set(msg.data); // 5 texels per splat, 256 splats per row: the carver's layout IS the texture layout
+  const tex = new THREE.DataTexture(buf, 1280, rows, THREE.RGBAFormat, THREE.FloatType); tex.minFilter = tex.magFilter = THREE.NearestFilter; tex.generateMipmaps = false; tex.needsUpdate = true;
+  const g = new THREE.InstancedBufferGeometry(); g.index = QUAD.index; g.setAttribute('position', QUAD.attributes.position);
+  const idx = new Float32Array(n); for (let i = 0; i < n; i++) idx[i] = i;
+  const ia = new THREE.InstancedBufferAttribute(idx, 1); ia.setUsage(THREE.DynamicDrawUsage); g.setAttribute('aIdx', ia); g.instanceCount = n;
+  g.boundingSphere = new THREE.Sphere(new V(0, msg.height / 2, 0), Math.max(msg.height, msg.radius * 2) * .62);
+  const mat = SPLAT.clone(); for (const k of SHARED_U) mat.uniforms[k] = SU[k]; mat.uniforms.uData.value = tex;
+  const mesh = new THREE.Mesh(g, mat); mesh.renderOrder = 10;
+  const ctr = new Float32Array(n * 3); for (let i = 0; i < n; i++) { ctr[i * 3] = msg.data[i * 20]; ctr[i * 3 + 1] = msg.data[i * 20 + 1]; ctr[i * 3 + 2] = msg.data[i * 20 + 2]; }
+  return { mesh, mat, tex, n, idx, ia, ctr, key: new Uint16Array(n), dist: new Float32Array(n), last: new V(1e9, 0, 0), height: msg.height, radius: msg.radius };
+}
+const CNT = new Uint32Array(4096);
+function sortSplats(S, cx, cy, cz) { // counting sort, far to near, on the squared distance from your eyes in the piece's own space
+  const n = S.n, c = S.ctr, dist = S.dist, key = S.key, idx = S.idx; let mn = Infinity, mx = -Infinity;
+  for (let i = 0, o = 0; i < n; i++, o += 3) { const dx = c[o] - cx, dy = c[o + 1] - cy, dz = c[o + 2] - cz, d = dx * dx + dy * dy + dz * dz; dist[i] = d; if (d < mn) mn = d; if (d > mx) mx = d; }
+  const sc = 4095 / (mx - mn || 1); CNT.fill(0);
+  for (let i = 0; i < n; i++) { const k = 4095 - ((dist[i] - mn) * sc | 0); key[i] = k; CNT[k]++; }
+  for (let k = 0, s = 0; k < 4096; k++) { const t = CNT[k]; CNT[k] = s; s += t; }
+  for (let i = 0; i < n; i++) idx[CNT[key[i]]++] = i;
+  S.ia.needsUpdate = true; S.last.set(cx, cy, cz);
+}
+const SPL = []; // every live splat mesh, for the sorter
+const _camW = new V(), _camL = new V();
+function sortPass() {
+  camera.getWorldPosition(_camW); let budget = 3; const want = [];
+  for (const s of SPL) {
+    if (!s.mesh.visible || !s.mesh.parent) continue;
+    s.mesh.updateWorldMatrix(true, false); _camL.copy(_camW); s.mesh.worldToLocal(_camL); _camL.y -= s.height * .5;
+    const a = _v.copy(_camL).normalize(), b = _v2.copy(s.last).normalize(), turn = 1 - a.dot(b), far = Math.abs(_camL.length() - s.last.length()) / Math.max(_camL.length(), .05);
+    const need = s.urgent ? 9 : turn * 2000 + far * 30; if (need > .6) want.push([need, s, _camL.x, _camL.y + s.height * .5, _camL.z]);
+  }
+  want.sort((a, b) => b[0] - a[0]);
+  for (const [need, s, x, y, z] of want) { if (need < 9 && budget-- <= 0) break; sortSplats(s, x, y, z); s.last.y -= s.height * .5; }
+}
+
+// the carver runs in two workers; pieces arrive one by one and materialise as they do
+const CARVE = { pool: [], queue: [], wait: new Map(), done: new Map(), busy: 0, h: .09 };
+for (let i = 0; i < Math.min(2, Math.max(1, (navigator.hardwareConcurrency || 2) - 1)); i++) { const w = new Worker('carver.js'); w.onmessage = e => carved(w, e.data); w.idle = true; CARVE.pool.push(w); }
+function carveAll(names) { for (const n of names) if (!CARVE.done.has(n) && !CARVE.queue.includes(n) && ![...CARVE.pool].some(w => w.job === n)) CARVE.queue.push(n); pumpCarve(); }
+function carveFirst(names) { CARVE.queue = [...names.filter(n => CARVE.queue.includes(n)), ...CARVE.queue.filter(n => !names.includes(n))]; carveAll(names); }
+function pumpCarve() { for (const w of CARVE.pool) if (w.idle && CARVE.queue.length) { const n = CARVE.queue.shift(); w.idle = false; w.job = n; w.postMessage({ id: n, name: n, h: CARVE.h }); } }
+function carved(w, msg) { w.idle = true; w.job = null; CARVE.done.set(msg.name, msg); const cb = CARVE.wait.get(msg.name); if (cb) { CARVE.wait.delete(msg.name); cb.forEach(f => f(msg)); } pumpCarve(); }
+const whenCarved = (name, f) => { if (CARVE.done.has(name)) queueMicrotask(() => f(CARVE.done.get(name))); else { if (!CARVE.wait.has(name)) CARVE.wait.set(name, []); CARVE.wait.get(name).push(f); carveAll([name]); } };
+
+// ═══════════════════════════ THE SET: a black marble tray that curves round you, the studio it is lit by, the dimmed room ═══════════════════════════
+function marbleTex() {
+  const W = 2048, H = 1024, { ctx, tex } = ctex(W, H); ctx.fillStyle = '#0c0c0e'; ctx.fillRect(0, 0, W, H);
+  for (let i = 0; i < 40; i++) { const x = rand(0, W), y = rand(0, H), r = rand(80, 420), g = ctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, `rgba(${rand(20, 34) | 0},${rand(20, 30) | 0},${rand(22, 32) | 0},.5)`); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(x - r, y - r, 2 * r, 2 * r); }
+  const vein = (x, y, a, len, w, al, warm) => { ctx.beginPath(); ctx.moveTo(x, y); for (let s = 0; s < len; s += 8) { a += rand(-.18, .18); x += Math.cos(a) * 8; y += Math.sin(a) * 8; ctx.lineTo(x, y); if (Math.random() < .015 && w > .6) vein(x, y, a + rand(-1, 1), len * .4, w * .6, al * .8, warm); }
+    ctx.strokeStyle = warm ? `rgba(214,184,128,${al})` : `rgba(226,224,218,${al})`; ctx.lineWidth = w; ctx.stroke(); };
+  ctx.filter = 'blur(1.4px)'; for (let i = 0; i < 26; i++) vein(rand(-200, W), rand(0, H), rand(-.5, .5) + (Math.random() < .5 ? 0 : Math.PI / 5), rand(500, 1800), rand(.8, 2.4), rand(.12, .32), Math.random() < .35);
+  ctx.filter = 'none'; for (let i = 0; i < 14; i++) vein(rand(-200, W), rand(0, H), rand(-.6, .6), rand(300, 1200), rand(.5, 1.1), rand(.25, .5), Math.random() < .5);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping; return tex;
+}
+const ENV = { tex: null, yaw: 999 };
+function buildEnv(yaw) { // bake the studio round the tray, turned to face wherever you face
+  const e = new THREE.Scene(); e.add(new THREE.Mesh(new THREE.SphereGeometry(5, 24, 16), new THREE.ShaderMaterial({ side: THREE.BackSide, vertexShader: `varying vec3 vW;void main(){vW=normalize(position);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}`,
+    fragmentShader: `varying vec3 vW;void main(){vec3 r=normalize(vW);vec3 c=mix(vec3(.022,.02,.018),vec3(.4,.39,.38),smoothstep(-.45,.12,r.y));c=mix(c,vec3(.6,.6,.62),smoothstep(.35,.95,r.y));float az=atan(r.x,-r.z);c*=1.-.8*smoothstep(.38,.06,abs(az-1.75))*smoothstep(-.35,.05,r.y)-.7*smoothstep(.36,.05,abs(az+2.3))*smoothstep(-.35,.05,r.y);gl_FragColor=vec4(c,1.);}` })));
+  const box = (dir, w, h, col) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide })); m.position.copy(dir).multiplyScalar(4); m.lookAt(0, 0, 0); e.add(m); };
+  box(KEY_DIR, 3.4, 2.4, new C(3.4, 3.1, 2.75)); box(RIM_DIR, 1, 3.4, new C(1.5, 1.8, 2.3)); box(FILL_DIR, 1.2, 1.2, new C(1, .84, .66)); box(new V(0, 1, 0), 3, 3, new C(.9, .9, .9));
+  e.rotation.y = yaw; e.updateMatrixWorld(true);
+  const pm = new THREE.PMREMGenerator(renderer); if (ENV.tex) ENV.tex.dispose(); ENV.tex = pm.fromScene(e, .02).texture; pm.dispose(); scene.environment = ENV.tex; ENV.yaw = yaw;
+}
+const key = new THREE.DirectionalLight(0xfff0dc, 2.2); key.position.copy(KEY_DIR); stage.add(key, key.target);
+const hemi = new THREE.HemisphereLight(0x8a93a6, 0x1a1612, .35); scene.add(hemi);
+
+const tray = (() => {
+  const { r0, r1, half, t } = CFG.TRAY, rm = (r0 + r1) / 2, rc = (r1 - r0) / 2, sh = new THREE.Shape(), a0 = Math.PI / 2 + half, a1 = Math.PI / 2 - half;
+  sh.absarc(0, 0, r1, a0, a1, true); sh.absarc(Math.cos(a1) * rm, Math.sin(a1) * rm, rc, a1, a1 - Math.PI, true); sh.absarc(0, 0, r0, a1, a0, false); sh.absarc(Math.cos(a0) * rm, Math.sin(a0) * rm, rc, a0 + Math.PI, a0, true);
+  const g = new THREE.ExtrudeGeometry(sh, { depth: t - .006, curveSegments: 96, bevelEnabled: true, bevelThickness: .003, bevelSize: .003, bevelSegments: 4 });
+  g.rotateX(-Math.PI / 2); g.translate(0, -t + .003, 0);
+  const uv = g.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 1.6 + .5, uv.getY(i) * 1.6 + .5); // the caps' UVs are the shape's own xy: one slab of stone, not tiles
+  const mt = marbleTex(); mt.repeat.set(1, 1);
+  const m = new THREE.Mesh(g, new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: mt, roughness: .26, metalness: 0, clearcoat: 1, clearcoatRoughness: .06, envMapIntensity: .9 }));
+  stage.add(m);
+  // a brass inlay along the top, a hair inside the outer and inner edge
+  const brass = new THREE.MeshStandardMaterial({ color: '#c9a35c', roughness: .22, metalness: 1, envMapIntensity: 1.2 });
+  for (const [r, s] of [[r1 - .012, .0011], [r0 + .012, .0009]]) { const path = new THREE.CatmullRomCurve3(Array.from({ length: 41 }, (_, i) => { const a = -half + 2 * half * i / 40; return new V(Math.sin(a) * r, .0002, -Math.cos(a) * r); }));
+    stage.add(new THREE.Mesh(new THREE.TubeGeometry(path, 160, s, 6, false), brass)); }
+  return { mesh: m, brass };
+})();
+// where each piece lives on the tray: a brass ring, a pool of light, and its shadow
+const HOMES = Array.from({ length: 9 }, () => {
+  const g = new THREE.Group(); stage.add(g);
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(.031, .0009, 6, 64), tray.brass); ring.rotation.x = -Math.PI / 2; ring.position.y = .0004; g.add(ring);
+  const pool = new THREE.Mesh(new THREE.PlaneGeometry(.13, .13), new THREE.MeshBasicMaterial({ map: poolTex, color: new C(.32, .26, .18), ...ADD, opacity: 1 })); pool.rotation.x = -Math.PI / 2; pool.position.y = .0006; pool.renderOrder = 1; g.add(pool);
+  g.visible = false; return { g, ring, pool, on: 0, lit: 0 };
+});
+const shadowMat = () => new THREE.MeshBasicMaterial({ map: blobTex, color: 0x000000, transparent: true, depthWrite: false, opacity: .8 });
+
+// the room: a dark studio backdrop on the desktop; in the headset, your own room, dimmed
+const backdrop = new THREE.Mesh(new THREE.SphereGeometry(12, 32, 16), new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false,
+  vertexShader: `varying vec3 vW;void main(){vW=(modelMatrix*vec4(position,1.)).xyz;gl_Position=projectionMatrix*viewMatrix*vec4(vW,1.);}`,
+  fragmentShader: `varying vec3 vW;void main(){vec3 d=normalize(vW-cameraPosition);float h=d.y;
+    vec3 c=mix(vec3(.018,.018,.02),vec3(.07,.068,.066),smoothstep(-.5,.05,h))*mix(1.,.55,smoothstep(.05,.7,h));
+    c+=vec3(.05,.042,.034)*pow(max(dot(d,normalize(vec3(-.4,.25,-1.))),0.),6.);gl_FragColor=vec4(c,1.);}` }));
+backdrop.renderOrder = -300; scene.add(backdrop);
+const dimMat = new THREE.ShaderMaterial({ ...PRE, side: THREE.BackSide, uniforms: { uA: { value: 0 } },
+  vertexShader: `varying vec3 vW;void main(){vec4 w=modelMatrix*vec4(position,1.);vW=w.xyz;gl_Position=projectionMatrix*viewMatrix*w;}`,
+  fragmentShader: `uniform float uA;varying vec3 vW;void main(){vec3 d=normalize(vW-cameraPosition);float a=uA*(1.+.35*smoothstep(-.1,-.8,d.y)-.12*smoothstep(.2,.8,d.y));gl_FragColor=vec4(vec3(.004,.004,.005)*a,clamp(a,0.,1.));}` });
+const dimSphere = new THREE.Mesh(new THREE.SphereGeometry(9, 24, 16), dimMat); dimSphere.renderOrder = -100; dimSphere.frustumCulled = false; scene.add(dimSphere);
+
+// ═══════════════════════════ THE BOARD: layout, tiles, letters ═══════════════════════════
+// Every word crosses another, no letters touch side by side, compact and a little wider than tall. A small randomized backtracking search.
+function layout(words, seed = 1, budget = 4000) {
+  const R = rng(seed), grid = new Map(), key = (r, c) => r * 1000 + c, slots = []; let best = null, nodes = 0;
+  const at = (r, c) => grid.get(key(r, c));
+  const fits = (w, r, c, dr, dc) => {
+    if (at(r - dr, c - dc) || at(r + dr * w.length, c + dc * w.length)) return -1;
+    let cross = 0;
+    for (let i = 0; i < w.length; i++) { const rr = r + dr * i, cc = c + dc * i, g = at(rr, cc);
+      if (g) { if (g.ch !== w[i] || (dr ? g.d : g.a) >= 0) return -1; cross++; } else if (at(rr + dc, cc + dr) || at(rr - dc, cc - dr)) return -1; }
+    return cross;
+  };
+  const put = (w, r, c, dr, dc) => { const si = slots.length, made = []; for (let i = 0; i < w.length; i++) { const k = key(r + dr * i, c + dc * i); let g = grid.get(k); if (!g) { g = { r: r + dr * i, c: c + dc * i, ch: w[i], a: -1, d: -1 }; grid.set(k, g); made.push(k); } if (dr) g.d = si; else g.a = si; } slots.push({ w, r, c, dr, dc, made }); };
+  const pop = () => { const s = slots.pop(); for (let i = 0; i < s.w.length; i++) { const g = at(s.r + s.dr * i, s.c + s.dc * i); if (s.dr) g.d = -1; else g.a = -1; } for (const k of s.made) grid.delete(k); };
+  const bounds = () => { let r0 = 1e9, r1 = -1e9, c0 = 1e9, c1 = -1e9; for (const g of grid.values()) { r0 = Math.min(r0, g.r); r1 = Math.max(r1, g.r); c0 = Math.min(c0, g.c); c1 = Math.max(c1, g.c); } return [r0, r1, c0, c1]; };
+  const go = left => {
+    if (++nodes > budget) return;
+    if (!left.length) { const [r0, r1, c0, c1] = bounds(); let cross = 0; for (const g of grid.values()) if (g.a >= 0 && g.d >= 0) cross++; const rows = r1 - r0 + 1, cols = c1 - c0 + 1;
+      const s = cross * 5 - rows * cols * .55 - Math.abs(cols / rows - 1.4) * 5 - Math.max(0, rows - 6) * 10 - Math.max(0, cols - 9) * 10;
+      if (!best || s > best.score) best = { score: s, rows, cols, slots: slots.map(q => ({ word: q.w, r: q.r - r0, c: q.c - c0, dr: q.dr, dc: q.dc })) }; return; }
+    const cand = [], [br0, br1, bc0, bc1] = bounds();
+    for (const w of left) for (const s of slots) for (let i = 0; i < w.length; i++) for (let j = 0; j < s.w.length; j++) {
+      if (w[i] !== s.w[j]) continue;
+      const dr = s.dc, dc = s.dr, r0 = s.r + s.dr * j - dr * i, c0 = s.c + s.dc * j - dc * i, x = fits(w, r0, c0, dr, dc); if (x <= 0) continue;
+      const rows = Math.max(br1, r0 + dr * (w.length - 1)) - Math.min(br0, r0) + 1, cols = Math.max(bc1, c0 + dc * (w.length - 1)) - Math.min(bc0, c0) + 1;
+      cand.push({ w, r0, c0, dr, dc, s: x * 6 - rows * cols * .5 - Math.max(0, rows - cols) * 2 + R() * 5 });
+    }
+    cand.sort((a, b) => b.s - a.s);
+    for (const c of cand.slice(0, 3)) { put(c.w, c.r0, c.c0, c.dr, c.dc); go(left.filter(w => w !== c.w)); pop(); if (nodes > budget) return; }
+  };
+  const ws = words.slice().sort((a, b) => b.length - a.length);
+  for (let k = 0; k < Math.min(ws.length, 3); k++) { put(ws[k], 0, 0, 0, 1); go(ws.filter((_, i) => i !== k)); pop(); }
+  return best;
+}
+function levelDef(n) { // the five set puzzles, then encores: a random handful of pieces that interlock
+  if (n < LEVELS.length) return { n, name: LEVELS[n].name, pieces: LEVELS[n].pieces, lay: layout(LEVELS[n].pieces.map(p => PIECES[p][0]), n + 1) };
+  const R = rng(n * 7919 + 13), all = Object.keys(PIECES);
+  for (let tries = 0; tries < 80; tries++) { const k = 6 + (R() < .5 ? 1 : 0), pick = all.slice().sort(() => R() - .5).slice(0, k), lay = layout(pick.map(p => PIECES[p][0]), n * 31 + tries, 2500);
+    if (lay && lay.cols <= 9 && lay.rows <= 7) return { n, name: 'Encore', pieces: pick, lay }; }
+  return levelDef(n % LEVELS.length);
+}
+
+// glyphs: A-Z, then 0-9, painted once into an 8x8 atlas
+const ATLAS = (() => {
+  const S = 128, { cv, ctx, tex } = ctex(S * 8, S * 8, false); ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  for (let i = 0; i < chars.length; i++) { const ch = chars[i], x = (i % 8) * S + S / 2, num = i >= 26;
+    ctx.font = num ? '500 40px "Geist Mono", monospace' : '600 98px "Cormorant Garamond", Georgia, serif';
+    const m = ctx.measureText(ch), asc = m.actualBoundingBoxAscent, des = m.actualBoundingBoxDescent; ctx.fillText(ch, x, Math.floor(i / 8) * S + S / 2 + (asc - des) / 2); }
+  tex.generateMipmaps = true; tex.minFilter = THREE.LinearMipmapLinearFilter; tex.needsUpdate = true; return tex;
+})();
+const glyph = ch => ch >= 'A' && ch <= 'Z' ? ch.charCodeAt(0) - 65 : ch >= '0' && ch <= '9' ? 26 + ch.charCodeAt(0) - 48 : 0;
+
+const board = new THREE.Group(); stage.add(board);
+const MAXC = 96;
+const tileMat = new THREE.ShaderMaterial({ ...PRE, extensions: { derivatives: true },
+  vertexShader: `attribute vec4 aS,aR;varying vec2 vUv;varying vec4 vS,vR;void main(){vUv=uv;vS=aS;vR=aR;vec4 p=vec4(position,1.);
+    #ifdef USE_INSTANCING
+    p=instanceMatrix*p;
+    #endif
+    gl_Position=projectionMatrix*modelViewMatrix*p;}`,
+  fragmentShader: `varying vec2 vUv;varying vec4 vS,vR;
+    void main(){vec2 p=(vUv-.5)*1.3;vec2 q=abs(p)-.5+.075;float d=length(max(q,0.))+min(max(q.x,q.y),0.)-.075,aa=fwidth(d);
+      float ap=vS.x,tg=vS.y,so=vS.z,fl=vS.w,af=abs(fl);
+      float ang=fract(atan(p.x,-p.y)/6.2832+.5+vR.w),drawn=smoothstep(ang-.06,ang,ap*1.12-.04);           // the hairline draws itself round the tile
+      float ring=1.-smoothstep(.0028,.0028+aa*1.6,abs(d+.02));
+      float fill=(1.-smoothstep(-aa,aa,d))*smoothstep(.25,1.,ap);
+      vec3 lc=mix(vec3(.72,.69,.62),vec3(1.,.8,.47),max(tg,so*.85));lc=mix(lc,fl>0.?vec3(.5,1.,.66):vec3(1.,.36,.3),af);
+      float la=ring*drawn*(.55+.45*max(tg,so))+ring*af*.4;
+      vec3 fc=vec3(.017,.018,.021)+vec3(.075,.058,.03)*tg+vec3(.04,.03,.015)*so+(fl>0.?vec3(.02,.13,.06):vec3(.16,.02,.02))*af;
+      float fa=fill*(.64+.12*tg);
+      float halo=exp(-max(d,0.)*34.)*step(0.,d)*(tg*.6+af*.5+vR.x*.5);
+      vec3 hc=af>.01?lc:vec3(1.,.74,.4);
+      vec3 col=fc*fa*(1.-la)+lc*la+hc*halo*.55+vec3(1.,.86,.58)*vR.x*fill*.22;
+      float a=fa+la*(1.-fa)+halo*.22;
+      gl_FragColor=vec4(col,clamp(a,0.,1.));}` });
+const tiles = new THREE.InstancedMesh(new THREE.PlaneGeometry(1.3, 1.3), tileMat, MAXC); tiles.renderOrder = 2; tiles.frustumCulled = false;
+const tS = new THREE.InstancedBufferAttribute(new Float32Array(MAXC * 4), 4), tR = new THREE.InstancedBufferAttribute(new Float32Array(MAXC * 4), 4);
+tS.setUsage(THREE.DynamicDrawUsage); tR.setUsage(THREE.DynamicDrawUsage); tiles.geometry.setAttribute('aS', tS); tiles.geometry.setAttribute('aR', tR); tiles.count = 0; board.add(tiles);
+const letterMat = new THREE.ShaderMaterial({ ...PRE, uniforms: { uAtlas: { value: ATLAS } },
+  vertexShader: `attribute vec4 aG;varying vec2 vUv;varying vec4 vG;void main(){vG=aG;vec2 cell=vec2(mod(aG.x,8.),floor(aG.x/8.));vUv=vec2((cell.x+uv.x)/8.,(7.-cell.y+uv.y)/8.);vec4 p=vec4(position,1.);
+    #ifdef USE_INSTANCING
+    p=instanceMatrix*p;
+    #endif
+    gl_Position=projectionMatrix*modelViewMatrix*p;}`,
+  fragmentShader: `uniform sampler2D uAtlas;varying vec2 vUv;varying vec4 vG;
+    void main(){float s=texture2D(uAtlas,vUv).a,ap=vG.y,k=vG.z;
+      vec3 c=mix(vec3(1.,.82,.5)*1.5,vec3(.96,.93,.85),smoothstep(.5,1.,ap));c=mix(c,vec3(1.,.87,.6)*1.3,vG.w);
+      float a=s*smoothstep(0.,.35,ap);
+      if(k>.5&&k<1.5){a*=.5;c=vec3(.8,.75,.66);}       // the little numbers
+      if(k>1.5){a*=.26;c=vec3(.85,.8,.7);}              // a hint, pencilled in
+      gl_FragColor=vec4(min(c,vec3(1.))*a,a);}` });
+const letters = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), letterMat, MAXC * 2); letters.renderOrder = 3; letters.frustumCulled = false;
+const lG = new THREE.InstancedBufferAttribute(new Float32Array(MAXC * 2 * 4), 4); lG.setUsage(THREE.DynamicDrawUsage); letters.geometry.setAttribute('aG', lG); letters.count = 0; board.add(letters);
+
+// text cards: the title over the board, the hint by the tray
+function textCard(w, h, pxPerM = 1800) { const { cv, ctx, tex } = ctex(Math.round(w * pxPerM), Math.round(h * pxPerM)); tex.generateMipmaps = true; tex.minFilter = THREE.LinearMipmapLinearFilter;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0, toneMapped: false })); m.renderOrder = 4; return { m, cv, ctx, tex, k: 0, want: 0 }; }
+const title = textCard(.8, .16); board.add(title.m);
+function drawTitle(top, main, sub) { const { cv, ctx, tex } = title; ctx.clearRect(0, 0, cv.width, cv.height); ctx.textAlign = 'center'; const W = cv.width;
+  ctx.fillStyle = 'rgba(216,180,106,.95)'; ctx.font = '500 26px "Geist Mono", monospace'; ctx.letterSpacing = '9px'; ctx.fillText(top, W / 2, 46); ctx.letterSpacing = '0px';
+  ctx.fillStyle = '#efe9da'; ctx.font = 'italic 500 96px "Cormorant Garamond", Georgia, serif'; ctx.fillText(main, W / 2, 152);
+  if (sub) { ctx.fillStyle = 'rgba(236,230,214,.62)'; ctx.font = '400 24px "Geist Mono", monospace'; ctx.letterSpacing = '6px'; ctx.fillText(sub, W / 2, 222); ctx.letterSpacing = '0px'; }
+  tex.needsUpdate = true; }
+const hintCard = textCard(.42, .06, 2000); stage.add(hintCard.m);
+function drawHint(txt) { const { cv, ctx, tex } = hintCard; ctx.clearRect(0, 0, cv.width, cv.height); ctx.textAlign = 'center'; ctx.fillStyle = '#efe9da'; ctx.font = 'italic 500 62px "Cormorant Garamond", Georgia, serif'; ctx.fillText(txt, cv.width / 2, 78); tex.needsUpdate = true; }
+
+const BD = { def: null, cells: [], slots: [], pitch: .08, w: 0, h: 0, mInv: new THREE.Matrix4(), wave: -1, shake: 0 };
+function buildBoard(def) {
+  const L = def.lay, p = Math.min(CFG.BOARD.pitch, CFG.BOARD.w / L.cols, CFG.BOARD.h / L.rows), cells = new Map();
+  BD.def = def; BD.pitch = p; BD.w = L.cols * p; BD.h = L.rows * p; BD.cells = []; BD.slots = []; BD.wave = -1;
+  const cellAt = (r, c) => { const k = r * 100 + c; if (!cells.has(k)) { const cell = { r, c, ch: '', slots: [], pos: new V((c - (L.cols - 1) / 2) * p, ((L.rows - 1) / 2 - r) * p, 0), shown: 0, show: -1, ghost: 0, ap: 0, apT: 0, tg: 0, so: 0, fl: 0, wave: 0, num: 0, i: BD.cells.length }; cells.set(k, cell); BD.cells.push(cell); } return cells.get(k); };
+  for (const s of L.slots) {
+    const slot = { word: s.word, dir: s.dr ? 'down' : 'across', cells: [], solved: false, piece: def.pieces.find(id => PIECES[id][0] === s.word), a: new V(), b: new V(), mid: new V() };
+    for (let i = 0; i < s.word.length; i++) { const c = cellAt(s.r + s.dr * i, s.c + s.dc * i); c.ch = s.word[i]; c.slots.push(slot); slot.cells.push(c); }
+    slot.a.copy(slot.cells[0].pos); slot.b.copy(slot.cells[slot.cells.length - 1].pos); slot.mid.addVectors(slot.a, slot.b).multiplyScalar(.5); BD.slots.push(slot);
+  }
+  // numbers in reading order, as in any crossword
+  const starts = BD.slots.map(s => s.cells[0]).filter((c, i, a) => a.indexOf(c) === i).sort((a, b) => a.r - b.r || a.c - b.c); starts.forEach((c, i) => { c.num = i + 1; });
+  // the tiles draw themselves from the middle outwards
+  const cr = (L.rows - 1) / 2, cc = (L.cols - 1) / 2; for (const c of BD.cells) c.apT = Math.hypot(c.r - cr, c.c - cc) * .09 + Math.random() * .05;
+  tiles.count = BD.cells.length;
+  board.position.set(0, CFG.BOARD.y, CFG.BOARD.z); stage.updateMatrixWorld(true); board.lookAt(toWorld(EYE.clone())); board.updateMatrix(); BD.mInv.copy(board.matrix).invert();
+  title.m.position.set(0, BD.h / 2 + .095, 0); hintCard.m.position.set(0, .006, -CFG.TRAY.r1 - .045); hintCard.m.lookAt(toWorld(EYE.clone()));
+}
+function updBoard(dt) {
+  const p = BD.pitch, tS_ = tS.array, tR_ = tR.array; let li = 0; BD.shake = Math.max(0, BD.shake - dt);
+  for (const c of BD.cells) {
+    c.ap = clamp(c.ap + (S.boardOn ? 1 : -1) * dt / .7 * (S.boardOn && S.t < c.apT ? 0 : 1), 0, 1);
+    c.fl *= Math.exp(-dt / .3); if (Math.abs(c.fl) < .01) c.fl = 0;
+    const so = c.slots.some(s => s.solved) ? 1 : 0; c.so += (so - c.so) * damp(dt, .2);
+    if (BD.wave >= 0) { const d = (c.c + c.r) * .07; c.wave = Math.max(0, Math.sin(clamp((BD.wave - d) / .5, 0, 1) * Math.PI)); } else c.wave *= Math.exp(-dt / .2);
+    const sh = c.fl < 0 ? Math.sin(T * 60) * .006 * -c.fl : 0;
+    _m.compose(_v.set(c.pos.x + sh, c.pos.y, 0), _q.identity(), _v2.setScalar(p * .9)); tiles.setMatrixAt(c.i, _m);
+    tS_[c.i * 4] = c.ap; tS_[c.i * 4 + 1] = c.tg; tS_[c.i * 4 + 2] = c.so; tS_[c.i * 4 + 3] = c.fl;
+    tR_[c.i * 4] = c.wave; tR_[c.i * 4 + 3] = (c.r * 7 + c.c * 3) % 10 / 10;
+    // the letter: pops in with a little overshoot
+    if (c.show >= 0 && T >= c.show && !c.shown) { c.shown = T; }
+    if (c.shown || c.ghost) {
+      const k = c.shown ? clamp((T - c.shown) / .45, 0, 1) : 1, kind = c.shown ? 0 : 2, s = c.shown ? (k < 1 ? back(k) : 1) * .64 : .64, fade = c.ap;
+      _m.compose(_v.set(c.pos.x + sh, c.pos.y - (1 - k) * p * .18, .002), _q.identity(), _v2.setScalar(p * s * Math.max(fade, .001))); letters.setMatrixAt(li, _m);
+      lG.array.set([glyph(c.ch), (c.shown ? k : 1) * fade, kind, c.wave * .9], li * 4); li++;
+    }
+    if (c.num) { _m.compose(_v.set(c.pos.x - p * .31, c.pos.y + p * .3, .002), _q.identity(), _v2.setScalar(p * .22 * Math.max(c.ap, .001))); letters.setMatrixAt(li, _m);
+      lG.array.set([26 + (c.num % 10), c.ap * (c.shown ? .4 : 1), 1, 0], li * 4); li++; }
+  }
+  if (BD.wave >= 0) BD.wave += dt;
+  letters.count = li; tiles.instanceMatrix.needsUpdate = true; letters.instanceMatrix.needsUpdate = true; tS.needsUpdate = tR.needsUpdate = lG.needsUpdate = true;
+}
+// aim: a ray in stage space → the word slot it points at (with a little help), or null
+const _ro = new V(), _rd = new V();
+function aimAt(o, d, tol = CFG.AIM.tol, prev = null) {
+  _ro.copy(o).applyMatrix4(BD.mInv); _rd.copy(d).transformDirection(BD.mInv);
+  if (_rd.z > -.05) return null; const t = -_ro.z / _rd.z; if (t < .15) return null;
+  const hx = _ro.x + _rd.x * t, hy = _ro.y + _rd.y * t, p = BD.pitch; let best = null, bd = 1e9, pd = 1e9, cell = null, cd = 1e9;
+  for (const s of BD.slots) { if (s.solved) continue;
+    const ax = s.a.x, ay = s.a.y, ex = s.b.x - ax, ey = s.b.y - ay, h = clamp(((hx - ax) * ex + (hy - ay) * ey) / (ex * ex + ey * ey || 1), 0, 1), dd = Math.hypot(hx - ax - ex * h, hy - ay - ey * h) / p;
+    if (dd < bd) { bd = dd; best = s; } if (s === prev) pd = dd; }
+  for (const c of BD.cells) { const dd = Math.hypot(hx - c.pos.x, hy - c.pos.y) / p; if (dd < cd) { cd = dd; cell = c; } }
+  if (prev && !prev.solved && pd < tol + .2 && pd < bd + CFG.AIM.hold) return { slot: prev, cell: cd < .6 ? cell : null };
+  return bd < tol ? { slot: best, cell: cd < .6 ? cell : null } : null;
+}
+const slotWorld = (s, out) => out.copy(s.mid).add(_v4.set(0, 0, .055)).applyMatrix4(board.matrix); // where a piece hovers in front of its word (stage space)
+
+// ═══════════════════════════ HAND RIGS: the 25 WebXR joints (from die Hände) ═══════════════════════════
+const JN = ['wrist', 'thumb-metacarpal', 'thumb-phalanx-proximal', 'thumb-phalanx-distal', 'thumb-tip',
+  ...['index', 'middle', 'ring', 'pinky'].flatMap(f => ['metacarpal', 'phalanx-proximal', 'phalanx-intermediate', 'phalanx-distal', 'tip'].map(s => `${f}-finger-${s}`))];
+const PAR = [-1, 0, 1, 2, 3, 0, 5, 6, 7, 8, 0, 10, 11, 12, 13, 0, 15, 16, 17, 18, 0, 20, 21, 22, 23], TIPS = [4, 9, 14, 19, 24];
+const CHAIN = [[1, 2, 3, 4], [6, 7, 8, 9], [11, 12, 13, 14], [16, 17, 18, 19], [21, 22, 23, 24]], SPLAY = [1, 1, 0, -1, -1];
+const RIG = {};
+function makeRig(gltf, hd) {
+  const src = gltf.scene; src.updateMatrixWorld(true);
+  const rp = JN.map(n => src.getObjectByName(n).getWorldPosition(new V())), rq = JN.map(n => src.getObjectByName(n).getWorldQuaternion(new Qn())), relP = [], relQ = [];
+  for (let k = 0; k < 25; k++) { const p = PAR[k]; if (p < 0) { relP.push(new V()); relQ.push(new Qn()); continue; } const qi = rq[p].clone().invert(); relP.push(rp[k].clone().sub(rp[p]).applyQuaternion(qi)); relQ.push(qi.multiply(rq[k])); }
+  return { src, hd, chir: hd === 'right' ? 1 : -1, relP, relQ };
+}
+function handInst(rig, mat, parent) { const root = skClone(rig.src), sk = root.getObjectByProperty('type', 'SkinnedMesh'); sk.material = mat; sk.frustumCulled = false; parent.add(root); return { root, sk, bones: JN.map(n => root.getObjectByName(n)) }; }
+function writeBones(inst, P, Q) { for (let k = 0; k < 25; k++) { inst.bones[k].position.copy(P[k]); inst.bones[k].quaternion.copy(Q[k]); } }
+function fk(rig, rel, P, Q) { for (let k = 1; k < 25; k++) { const p = PAR[k]; Q[k].multiplyQuaternions(Q[p], rel[k]); P[k].copy(rig.relP[k]).applyQuaternion(Q[p]).add(P[p]); } }
+function relFromAngles(rig, Aa, out) { for (let k = 0; k < 25; k++) out[k].copy(rig.relQ[k]);
+  for (let f = 0; f < 5; f++) { const [j0, j1, j2] = CHAIN[f], a = Aa[f]; out[j0].multiply(_q.setFromAxisAngle(XA, -a[0])).multiply(_q.setFromAxisAngle(YA, a[3] * SPLAY[f] * rig.chir)); out[j1].multiply(_q.setFromAxisAngle(XA, -a[1])); out[j2].multiply(_q.setFromAxisAngle(XA, -a[2])); } }
+const POSE = {
+  rest: [[.1, .15, .2, .2], [.1, .32, .22, .05], [.14, .38, .26, 0], [.2, .42, .28, .04], [.26, .44, .28, .1]],
+  fist: [[.5, .6, .7, -.1], [1.3, 1.5, 1, 0], [1.38, 1.55, 1, 0], [1.38, 1.5, 1, 0], [1.3, 1.45, .95, 0]],
+  pinch: [[.62, .52, .4, -.32], [.55, .62, .42, .08], [.95, .75, .4, 0], [1.05, .8, .45, 0], [1.1, .8, .45, 0]],
+  open: [[.25, .2, .2, .1], [.15, .25, .15, .05], [.3, .4, .25, 0], [.45, .5, .3, 0], [.55, .55, .35, 0]],
+};
+const OCC = new THREE.ShaderMaterial({ uniforms: { uA: dimMat.uniforms.uA }, // your real hands: depth only, dimmed like the room, so pieces pass behind your fingers
+  vertexShader: `#include <common>
+    #include <skinning_pars_vertex>
+    void main(){
+      #include <skinbase_vertex>
+      #include <begin_vertex>
+      #include <skinning_vertex>
+      gl_Position=projectionMatrix*viewMatrix*modelMatrix*vec4(transformed,1.);}`,
+  fragmentShader: `uniform float uA;void main(){gl_FragColor=vec4(vec3(.004)*uA,uA);}` });
+const FLESH = new THREE.MeshStandardMaterial({ color: '#c39a82', roughness: .55, envMapIntensity: .5 });
+
+// ═══════════════════════════ YOUR HANDS: tracked joints, a controller, or the mouse, all brought into stage space ═══════════════════════════
+const HANDS = [0, 1].map(i => {
+  const h = { i, xh: renderer.xr.getHand(i), ray: renderer.xr.getController(i), grip: renderer.xr.getControllerGrip(i), src: null, hd: i ? 'left' : 'right', ok: false, kind: '', lost: 9,
+    P: JN.map(() => new V()), Q: JN.map(() => new Qn()), rel: JN.map(() => new Qn()), a: POSE.rest.map(r => r.slice()),
+    pin: new V(), pinS: new V(), q: new Qn(), qS: new Qn(), pd: 1, closed: false, wasClosed: false, aimO: new V(), aimD: new V(), aimOK: false, aimS: new V(0, 0, -1),
+    vel: new V(), prev: new V(), hist: [], hover: null, held: null, aim: null, aimHist: [], occ: null, sim: { on: !i, p: new V(.0, .08, -.3), pinch: false } };
+  scene.add(h.xh, h.ray, h.grip);
+  h.ray.addEventListener('connected', e => { h.src = e.data; if (e.data && (e.data.handedness === 'left' || e.data.handedness === 'right')) h.hd = e.data.handedness; });
+  h.ray.addEventListener('disconnected', () => { h.src = null; });
+  return h;
+});
+function updHands(dt) {
+  for (const h of HANDS) {
+    const rig = RIG[h.hd]; let ok = false, closedNow = false; h.wasClosed = h.closed;
+    if (SIM || !renderer.xr.isPresenting) { ok = SIM && h.sim.on && S.running && !!rig; if (ok) simHand(h, dt, rig); closedNow = h.sim.pinch; }
+    else if (h.src && h.src.hand) { const J = h.xh.joints, w = J && J.wrist; // bare hand: 25 real joints
+      if (w && w.visible) { ok = true; for (let k = 0; k < 25; k++) { const j = J[JN[k]]; if (!j) { ok = false; break; } toStage(h.P[k].copy(j.position)); h.Q[k].copy(stageQi).multiply(j.quaternion); } }
+      if (ok) { h.kind = 'hand'; const ti = h.P[4].distanceTo(h.P[9]), tm = h.P[4].distanceTo(h.P[14]) * 1.08; h.pd = Math.min(ti, tm);
+        h.pin.addVectors(h.P[4], ti <= tm ? h.P[9] : h.P[14]).multiplyScalar(.5); closedNow = h.pd < (h.closed ? CFG.GRAB.off : CFG.GRAB.on); } }
+    else if (h.src && h.grip.visible) { ok = true; h.kind = 'ctrl'; // controller: a posed hand round the grip; trigger or squeeze to hold
+      const b = (h.src.gamepad && h.src.gamepad.buttons) || [], tr = b[0] ? b[0].value : 0, sq = b[1] ? b[1].value : 0, c = Math.max(tr, sq);
+      for (let f = 0; f < 5; f++) for (let j = 0; j < 4; j++) h.a[f][j] = lerp(POSE.open[f][j], POSE.pinch[f][j], c);
+      relFromAngles(rig, h.a, h.rel); h.Q[0].copy(stageQi).multiply(h.grip.quaternion).multiply(_q.setFromAxisAngle(ZA, -rig.chir * Math.PI / 2));
+      toStage(h.P[0].copy(h.grip.position)).add(_v.set(0, 0, .07).applyQuaternion(h.Q[0])); fk(rig, h.rel, h.P, h.Q);
+      h.pin.addVectors(h.P[4], h.P[9]).multiplyScalar(.5); closedNow = c > (h.closed ? .35 : .6); }
+    if (h.occ) h.occ.root.visible = false;
+    if (!ok) { h.ok = false; h.lost += dt; h.closed = false; h.aimOK = false; continue; }
+    h.closed = closedNow;
+    if (!h.ok || h.lost > .3) { h.prev.copy(h.pin); h.pinS.copy(h.pin); h.qS.copy(h.Q[0]); h.hist.length = 0; }
+    h.ok = true; h.lost = 0; h.q.copy(h.Q[0]);
+    h.pinS.lerp(h.pin, damp(dt, .018)); h.qS.slerp(h.q, damp(dt, .03)); // a touch of smoothing for what you hold; tracking jitters
+    h.vel.lerp(_v.subVectors(h.pin, h.prev).divideScalar(Math.max(dt, .004)), .45); h.prev.copy(h.pin);
+    h.hist.push([T, h.pin.clone()]); while (h.hist.length && T - h.hist[0][0] > .12) h.hist.shift();
+    // aim: the system's pointing ray for hands and controllers (shoulder through hand), the mouse ray in the sim
+    if (SIM) { h.aimOK = true; } else if (h.ray.visible) { toStage(h.aimO.copy(h.ray.getWorldPosition(_v))); h.aimD.set(0, 0, -1).applyQuaternion(h.ray.getWorldQuaternion(_q)).applyQuaternion(stageQi); h.aimOK = true; }
+    else { // no ray from the system: shoulder estimate
+      const sx = h.hd === 'right' ? .17 : -.17; h.aimO.copy(h.pin); h.aimD.subVectors(h.pin, _v.set(sx, CFG.EYE - .2, .08)).normalize(); h.aimOK = true; }
+    if (!h.occ && rig) h.occ = handInst(rig, SIM ? FLESH : OCC, stage);
+    if (h.occ) { h.occ.root.visible = !(SIM && h.sim.away); h.occ.sk.renderOrder = SIM ? 0 : -200; writeBones(h.occ, h.P, h.Q); }
+  }
+}
+
+// ═══════════════════════════ FX: the aiming arc, sparks ═══════════════════════════
+const dotsMat = new THREE.ShaderMaterial({ ...ADD, uniforms: { uView: SU.uView, uTex: { value: glowTex } },
+  vertexShader: `attribute float aS;attribute vec3 aC;uniform vec2 uView;varying vec3 vC;void main(){vC=aC;vec4 mv=modelViewMatrix*vec4(position,1.);gl_Position=projectionMatrix*mv;gl_PointSize=aS*projectionMatrix[1][1]*uView.y*.5/max(-mv.z,.05);}`,
+  fragmentShader: `uniform sampler2D uTex;varying vec3 vC;void main(){gl_FragColor=vec4(vC*texture2D(uTex,gl_PointCoord).a,1.);}` });
+function pointsFx(n) { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3).setUsage(THREE.DynamicDrawUsage)); g.setAttribute('aS', new THREE.BufferAttribute(new Float32Array(n), 1).setUsage(THREE.DynamicDrawUsage));
+  g.setAttribute('aC', new THREE.BufferAttribute(new Float32Array(n * 3), 3).setUsage(THREE.DynamicDrawUsage)); const p = new THREE.Points(g, dotsMat); p.frustumCulled = false; p.renderOrder = 20; stage.add(p); g.setDrawRange(0, 0); return p; }
+const arc = pointsFx(64), sparks = pointsFx(400), SP = [];
+const bez = (a, b, c, t, out) => out.set(0, 0, 0).addScaledVector(a, (1 - t) * (1 - t)).addScaledVector(b, 2 * (1 - t) * t).addScaledVector(c, t * t);
+const _a0 = new V(), _a1 = new V(), _a2 = new V();
+function drawArc(list) { // list of [from, to, strength]
+  const pos = arc.geometry.attributes.position.array, sz = arc.geometry.attributes.aS.array, col = arc.geometry.attributes.aC.array; let n = 0;
+  for (const [from, to, k] of list) {
+    const dist = from.distanceTo(to); _a1.addVectors(from, to).multiplyScalar(.5).add(_v.set(0, .07 + dist * .1, 0));
+    const N = 22; for (let i = 1; i < N && n < 64; i++) { const t = (i + (T * 1.6) % 1) / N; bez(from, _a1, to, t, _v2); pos.set([_v2.x, _v2.y, _v2.z], n * 3);
+      const f = Math.sin(t * Math.PI) * k; sz[n] = .008 + .006 * f; col.set([1.1 * f, .8 * f, .42 * f], n * 3); n++; }
+  }
+  arc.geometry.setDrawRange(0, n); for (const a of ['position', 'aS', 'aC']) arc.geometry.attributes[a].needsUpdate = true;
+}
+function burst(p, n, col = [1, .8, .45], spd = .25, life = .9, size = .006) { for (let i = 0; i < n; i++) { if (SP.length >= 400) SP.shift(); const v = new V(rand(-1, 1), rand(-.2, 1.2), rand(-1, 1)).normalize().multiplyScalar(spd * rand(.3, 1)); SP.push({ p: p.clone(), v, t: 0, life: life * rand(.6, 1.2), col, size: size * rand(.6, 1.3) }); } }
+function updSparks(dt) { const pos = sparks.geometry.attributes.position.array, sz = sparks.geometry.attributes.aS.array, col = sparks.geometry.attributes.aC.array; let n = 0;
+  for (let i = SP.length - 1; i >= 0; i--) { const s = SP[i]; s.t += dt; if (s.t > s.life) { SP.splice(i, 1); continue; } s.v.y -= dt * .12; s.v.multiplyScalar(Math.exp(-dt * 2.2)); s.p.addScaledVector(s.v, dt);
+    const f = 1 - s.t / s.life, tw = .6 + .4 * Math.sin(T * 30 + i); pos.set([s.p.x, s.p.y, s.p.z], n * 3); sz[n] = s.size * f; col.set([s.col[0] * f * tw, s.col[1] * f * tw, s.col[2] * f * tw], n * 3); n++; }
+  sparks.geometry.setDrawRange(0, n); for (const a of ['position', 'aS', 'aC']) sparks.geometry.attributes[a].needsUpdate = true; }
+
+// ═══════════════════════════ PIECES ON THE TABLE ═══════════════════════════
+const PCS = [], TL = []; // the live pieces, and a little timeline of sounds and sparks still to come
+const later = (dt, f) => TL.push([T + dt, f]);
+function makePiece(id, i, home, yaw) {
+  const [word, snd] = PIECES[id];
+  const pc = { id, word, snd, i, home: home.clone(), yaw, homeQ: new Qn().setFromAxisAngle(YA, yaw), pos: home.clone(), q: new Qn().setFromAxisAngle(YA, yaw), q0: new Qn(), scale: CFG.PIECE, state: 'wait', t: 0, sp: null,
+    lift: 0, glow: 0, tint: new THREE.Vector4(), misses: 0, slot: null, cell: null, hand: null, off: new V(), offQ: new Qn(), f0: new V(), f1: new V(), f2: new V(), dur: 1, spin: 1, pop: 0,
+    shadow: new THREE.Mesh(new THREE.PlaneGeometry(1, 1), shadowMat()) };
+  pc.shadow.rotation.x = -Math.PI / 2; pc.shadow.renderOrder = 1; pc.shadow.visible = false; stage.add(pc.shadow);
+  whenCarved(id, msg => { if (!PCS.includes(pc)) return; pc.sp = splatMesh(msg); SPL.push(pc.sp); stage.add(pc.sp.mesh); pc.state = 'gather'; pc.t = 0; pc.sp.mat.uniforms.uGather.value = 1; sfx('gather', pc.home); });
+  return pc;
+}
+function dropPiece(pc) {
+  if (pc.sp) { stage.remove(pc.sp.mesh); pc.sp.mesh.geometry.dispose(); pc.sp.mat.dispose(); pc.sp.tex.dispose(); SPL.splice(SPL.indexOf(pc.sp), 1); pc.sp = null; }
+  stage.remove(pc.shadow); pc.shadow.geometry.dispose(); pc.shadow.material.dispose();
+}
+const faceQ = (p, out) => out.setFromAxisAngle(YA, Math.atan2(EYE.x - p.x, EYE.z - p.z)); // upright, turned to look at you
+function pieceDist(p, pc) { // from a point to the piece, treated as a capsule up its middle
+  const y0 = pc.pos.y + .012, y1 = pc.pos.y + (pc.sp ? pc.sp.height : .065) * pc.scale - .008, y = clamp(p.y, y0, y1);
+  return Math.hypot(p.x - pc.pos.x, p.y - y, p.z - pc.pos.z) - .018 * pc.scale;
+}
+function buzz(h, k = .4, ms = 30) { try { const a = h && h.kind === 'ctrl' && h.src && h.src.gamepad && h.src.gamepad.hapticActuators; if (a && a[0]) a[0].pulse(k, ms); } catch (e) { } } // controllers only; bare hands feel nothing
+function grab(h, pc) {
+  if (pc.hand) return; h.held = pc; pc.hand = h; pc.state = 'held'; pc.t = 0; pc.pop = 1; S.grabbed++; buzz(h, .5, 25);
+  _q.copy(h.qS).invert(); pc.off.copy(pc.pos).sub(h.pinS).applyQuaternion(_q); pc.offQ.copy(_q).multiply(pc.q);
+  pc.off.multiplyScalar(.8); // and settle a little deeper into your fingers
+  sfx('pick', pc.pos, 1, pc.snd); if (pc.sp) pc.sp.urgent = true;
+}
+function release(h) {
+  const pc = h.held; h.held = null; if (!pc) return; pc.hand = null;
+  // the act of letting go nudges the ray, so trust where you were pointing a moment before
+  let a = null; for (let i = h.aimHist.length - 1; i >= 0; i--) if (T - h.aimHist[i][0] >= .07) { a = h.aimHist[i][1]; break; }
+  if (!a) a = h.aim;
+  if (!a && h.vel.length() > 1.1) a = aimAt(pc.pos, _v.copy(h.vel).normalize(), 1.4); // a real throw
+  h.aim = null; h.aimHist.length = 0;
+  if (a) { launch(pc, a); buzz(h, .3, 40); } else goHome(pc);
+}
+function launch(pc, a) {
+  pc.state = 'fly'; pc.t = 0; pc.slot = a.slot; pc.cell = a.cell; pc.f0.copy(pc.pos); slotWorld(a.slot, pc.f2);
+  const dist = pc.f0.distanceTo(pc.f2); pc.f1.addVectors(pc.f0, pc.f2).multiplyScalar(.5).add(_v.set(0, .1 + dist * .14, 0));
+  pc.dur = .48 + dist * .2; pc.q0.copy(pc.q); pc.spin = Math.random() < .5 ? -1 : 1; S.launched++;
+  sfx('launch', pc.pos); if (pc.sp) pc.sp.urgent = true;
+}
+function goHome(pc, dur) {
+  pc.state = 'return'; pc.t = 0; pc.f0.copy(pc.pos); pc.f2.copy(pc.home); const dist = pc.f0.distanceTo(pc.f2);
+  pc.f1.addVectors(pc.f0, pc.f2).multiplyScalar(.5).add(_v.set(0, .05 + dist * .18, 0)); pc.dur = dur || .3 + dist * .5; pc.q0.copy(pc.q);
+  if (dist > .15) sfx('return', pc.pos); if (pc.sp) pc.sp.urgent = true;
+}
+function judge(pc) {
+  const own = BD.slots.find(s => s.word === pc.word && !s.solved), ok = own && (pc.slot === own || (pc.cell && pc.cell.slots.includes(own)));
+  if (ok) { pc.slot = own; pc.state = 'win'; pc.t = 0; sfx('right', pc.pos); for (const c of own.cells) c.fl = 1; return; }
+  pc.state = 'miss'; pc.t = 0; pc.misses++; S.misses++; sfx('wrong', pc.pos); BD.shake = .4;
+  for (const c of pc.slot.cells) if (!c.shown) c.fl = -1;
+  if (pc.misses >= 3 && own && !own.cells[0].shown && !own.cells[0].ghost) later(1.2, () => { own.cells[0].ghost = 1; sfx('hint', slotWorld(own, new V())); }); // three misses: the first letter, pencilled in
+}
+function dissolve(pc) { // the piece pours itself into its word: every gaussian picks a letter and flies there
+  const U = pc.sp.mat.uniforms, s = pc.slot; s.solved = true; S.solvedAny = true;
+  s.cells.forEach((c, k) => { U.uFlyT.value[k].copy(c.pos).applyMatrix4(board.matrixWorld); });
+  U.uFlyN.value = s.cells.length; U.uFlyUp.value.set(0, 1, 0).transformDirection(board.matrixWorld); U.uFlyAx.value.set(1, 0, 0).transformDirection(board.matrixWorld);
+  s.cells.forEach((c, k) => { if (!c.shown) { c.show = T + .62 + k * .07; later(.62 + k * .07, () => { sfx('letter', c.pos.clone().applyMatrix4(board.matrix), 1, k + (S.level % 3) * 2); burst(c.pos.clone().applyMatrix4(board.matrix), 7, [1, .82, .5], .18, .7, .005); }); } else c.wave = 1; });
+  pc.sp.mesh.frustumCulled = false;
+}
+const _tq = new Qn();
+function updPieces(dt) {
+  for (const pc of PCS) {
+    pc.t += dt; const sp = pc.sp; if (!sp) continue;
+    const U = sp.mat.uniforms; let tintA = 0, tintC = null, scale = CFG.PIECE; sp.urgent = false;
+    const hovered = HANDS.some(h => h.hover === pc && !h.held);
+    switch (pc.state) {
+      case 'gather': U.uGather.value = 1 - s01(pc.t / 1.5); pc.pos.copy(pc.home); pc.q.copy(pc.homeQ); if (pc.t > 1.5) { pc.state = 'home'; U.uGather.value = 0; } break;
+      case 'home': pc.lift += ((hovered ? .01 : 0) - pc.lift) * damp(dt, .08); pc.pos.copy(pc.home); pc.pos.y += pc.lift; _tq.copy(pc.homeQ).multiply(_q.setFromAxisAngle(YA, hovered ? Math.sin(T * 2.2) * .12 : 0)); pc.q.slerp(_tq, damp(dt, .15)); break;
+      case 'held': { const h = pc.hand; if (!h) { goHome(pc); break; } _v.copy(pc.off).applyQuaternion(h.qS).add(h.pinS); pc.pos.lerp(_v, damp(dt, .016)); _q.copy(h.qS).multiply(pc.offQ); pc.q.slerp(_q, damp(dt, .025)); sp.urgent = true; scale *= 1 + pc.pop * .06; break; }
+      case 'fly': { const k = clamp(pc.t / pc.dur, 0, 1), e = k < .5 ? 2 * k * k : 1 - (2 - 2 * k) * (2 - 2 * k) / 2; bez(pc.f0, pc.f1, pc.f2, e, pc.pos);
+        faceQ(pc.f2, _tq); pc.q.slerpQuaternions(pc.q0, _tq, s01(k * 1.3)).multiply(_q.setFromAxisAngle(YA, pc.spin * Math.PI * 2 * eio(k)));
+        scale *= 1 + .45 * s01(k); sp.urgent = true; if (Math.random() < .7) burst(_v.copy(pc.pos).add(_v2.set(rand(-.01, .01), .03 + rand(0, .02), rand(-.01, .01))), 1, [1, .78, .45], .02, .45, .004); // a faint trail of gold dust
+        if (k >= 1) { pc.state = 'judge'; pc.t = 0; sfx('dock', pc.pos); } break; }
+      case 'judge': scale *= 1.45; pc.pos.copy(pc.f2); pc.pos.y += Math.sin(pc.t * 9) * .003; faceQ(pc.f2, pc.q); if (pc.t > .16) judge(pc); break;
+      case 'win': scale *= 1.45 + .1 * s01(pc.t / .25); pc.pos.copy(pc.f2); faceQ(pc.f2, pc.q); tintA = s01(pc.t / .18) * .8; tintC = [.35, 1, .55];
+        if (pc.t > .26 && U.uFly.value === 0) { U.uFly.value = .0001; dissolve(pc); }
+        if (U.uFly.value > 0) U.uFly.value = Math.min(1, U.uFly.value + dt / 1.05);
+        if (U.uFly.value >= 1) { pc.state = 'gone'; sp.mesh.visible = false; HOMES[pc.i].lit = 1; } break;
+      case 'miss': { scale *= 1.45; pc.pos.copy(pc.f2); const k = pc.t / .5; faceQ(pc.f2, pc.q); pc.q.multiply(_q.setFromAxisAngle(ZA, Math.sin(pc.t * 42) * .2 * (1 - s01(k))));
+        tintA = (1 - s01((pc.t - .25) / .5)) * .85; tintC = [1, .25, .2]; if (pc.t > .55) goHome(pc, .75); break; }
+      case 'return': { const k = clamp(pc.t / pc.dur, 0, 1), e = eio(k); bez(pc.f0, pc.f1, pc.f2, e, pc.pos); pc.q.slerpQuaternions(pc.q0, pc.homeQ, s01(k * 1.2));
+        scale *= 1 + (pc.f0.distanceTo(pc.home) > .3 ? .45 * (1 - s01(k)) : 0); tintA = Math.max(0, pc.tint.w - dt * 2); tintC = [pc.tint.x, pc.tint.y, pc.tint.z]; sp.urgent = true;
+        if (k >= 1) { pc.state = 'land'; pc.t = 0; sfx('settle', pc.home, 1, pc.snd); } break; }
+      case 'land': pc.pos.copy(pc.home); pc.pos.y += Math.abs(Math.sin(pc.t * 18)) * .006 * Math.max(0, 1 - pc.t / .3); pc.q.copy(pc.homeQ); if (pc.t > .3) pc.state = 'home'; break;
+      case 'leave': U.uGather.value = s01(pc.t / 1.1); if (pc.t > 1.1) sp.mesh.visible = false; break;
+    }
+    pc.pop = Math.max(0, pc.pop - dt * 5);
+    if (tintC) pc.tint.set(tintC[0], tintC[1], tintC[2], tintA); else pc.tint.w = Math.max(0, pc.tint.w - dt * 3);
+    U.uTint.value.copy(pc.tint); pc.glow += ((hovered ? .55 : pc.state === 'held' ? .25 : 0) - pc.glow) * damp(dt, .08); U.uGlow.value = pc.glow;
+    pc.scale += (scale - pc.scale) * damp(dt, .06);
+    sp.mesh.position.copy(pc.pos); sp.mesh.quaternion.copy(pc.q); sp.mesh.scale.setScalar(pc.scale);
+    // a soft shadow on the stone, while the piece is over it
+    const rr = Math.hypot(pc.pos.x, pc.pos.z), hgt = pc.pos.y, on = sp.mesh.visible && pc.state !== 'gather' && rr > CFG.TRAY.r0 - .02 && rr < CFG.TRAY.r1 + .02 && hgt < .25 && hgt > -.01;
+    pc.shadow.visible = on; if (on) { const f = Math.pow(1 - hgt / .25, 2); pc.shadow.position.set(pc.pos.x + .006, .0008, pc.pos.z - .004); pc.shadow.scale.setScalar(.075 * pc.scale * (1 + hgt * 2.5)); pc.shadow.material.opacity = .78 * f * (pc.state === 'leave' ? 1 - s01(pc.t) : 1); }
+  }
+}
+function updHomes(dt) {
+  for (const hm of HOMES) { if (!hm.g.visible) continue; const pc = PCS.find(p => p.i === HOMES.indexOf(hm)), hov = pc && HANDS.some(h => h.hover === pc);
+    const want = !pc ? 0 : pc.state === 'gone' ? .9 : hov ? 1 : pc.state === 'home' || pc.state === 'land' ? .3 : .12;
+    hm.on += (want * (S.boardOn ? 1 : 0) - hm.on) * damp(dt, .15); const gold = pc && pc.state === 'gone';
+    hm.pool.material.color.setRGB(.2 * hm.on, (gold ? .15 : .14) * hm.on, (gold ? .06 : .1) * hm.on); hm.ring.scale.setScalar(1 + (gold ? .04 * Math.sin(T * 2 + hm.g.position.x * 9) : 0)); }
+}
+
+// ═══════════════════════════ PLAY: hover, pinch, aim, let go ═══════════════════════════
+const _cp = new V();
+function armOut(h) { if (SIM) return true; const r = Math.hypot(h.pin.x, h.pin.z); return !(h.pin.y < .11 && r > CFG.TRAY.r0 - .08 && r < CFG.TRAY.r1 + .06); } // a hand resting low over the tray is putting a piece down, not aiming
+function updPlay(dt) {
+  const playing = S.phase === 'play' || S.phase === 'intro';
+  for (const h of HANDS) {
+    if (!h.ok) { if (h.held) { const pc = h.held; h.held = null; pc.hand = null; goHome(pc); } h.hover = null; h.aim = null; continue; }
+    let best = null, bd = CFG.GRAB.reach;
+    if (!h.held && playing && !(h.closed && h.wasClosed)) for (const pc of PCS) { if (pc.state !== 'home' || pc.hand) continue; const d = pieceDist(h.pin, pc); if (d < bd) { bd = d; best = pc; } }
+    if (best !== h.hover) { if (best) sfx('hover', best.pos, 1, best.i); h.hover = best; }
+    if (best) { h.lastHover = best; h.lastHoverT = T; }
+    // closing a pinch moves your fingertips a few cm, so a piece you were over a moment ago still counts
+    if (h.closed && !h.wasClosed && !h.held && playing) { const pc = h.hover || (h.lastHover && T - h.lastHoverT < .35 && h.lastHover.state === 'home' && !h.lastHover.hand && pieceDist(h.pin, h.lastHover) < .07 ? h.lastHover : null); if (pc) grab(h, pc); }
+    if (h.held) {
+      let a = null; if (h.aimOK && armOut(h) && playing) a = aimAt(SIM ? camera.getWorldPosition(_cp).applyMatrix4(_m.copy(stage.matrixWorld).invert()) : h.aimO, h.aimD, CFG.AIM.tol, h.aim ? h.aim.slot : null);
+      if ((a && a.slot) !== (h.aim && h.aim.slot) && a) sfx('aim', slotWorld(a.slot, new V()));
+      h.aim = a; h.aimHist.push([T, a]); while (h.aimHist.length && T - h.aimHist[0][0] > .3) h.aimHist.shift();
+      if (!h.closed) release(h);
+    } else { h.aim = null; h.aimHist.length = 0; }
+  }
+  for (const c of BD.cells) c.tgW = 0; const arcs = [];
+  for (const h of HANDS) if (h.held && h.aim) { for (const c of h.aim.slot.cells) c.tgW = 1; const from = h.held.pos.clone(); from.y += (h.held.sp ? h.held.sp.height : .06) * h.held.scale * .6; arcs.push([from, slotWorld(h.aim.slot, new V()), 1]); }
+  for (const c of BD.cells) c.tg += ((c.tgW || 0) - c.tg) * damp(dt, .05);
+  drawArc(arcs);
+  for (let i = TL.length - 1; i >= 0; i--) if (T >= TL[i][0]) { const f = TL[i][1]; TL.splice(i, 1); f(); }
+}
+
+// ═══════════════════════════ FLOW: a puzzle draws itself, the pieces arrive, checkmate, the next one ═══════════════════════════
+function clearLevel() { for (const pc of PCS) dropPiece(pc); PCS.length = 0; TL.length = 0; for (const h of HANDS) { h.held = null; h.hover = null; h.aim = null; } for (const hm of HOMES) { hm.g.visible = false; hm.lit = 0; hm.on = 0; } }
+function startLevel(n) {
+  clearLevel(); S.level = n; if (S.running) SAVE.set({ level: n });
+  const def = levelDef(n); buildBoard(def);
+  for (const c of BD.cells) { c.ap = 0; c.shown = 0; c.show = -1; c.ghost = 0; c.fl = 0; c.tg = 0; c.so = 0; }
+  // the pieces stand in an arc round you, in an order that is not the board's
+  const R = rng(n * 131 + 7), ids = def.pieces.slice().sort(() => R() - .5), k = ids.length, span = Math.min(.3 * (k - 1), 1.45);
+  ids.forEach((id, i) => { const a = k > 1 ? -span / 2 + span * i / (k - 1) : 0, home = new V(Math.sin(a) * CFG.HOME, 0, -Math.cos(a) * CFG.HOME);
+    const hm = HOMES[i]; hm.g.visible = true; hm.g.position.copy(home); PCS.push(makePiece(id, i, home, Math.atan2(-home.x, -home.z))); });
+  carveFirst(ids); carveAll(levelDef(n + 1).pieces);
+  drawTitle(`NO. ${ROMAN(n + 1)}${n >= LEVELS.length ? '' : ' OF ' + ROMAN(LEVELS.length)}`, def.name, `${k} PIECES · ${def.lay.slots.length} WORDS`);
+  title.want = 1; S.boardOn = true; S.misses = 0; S.start = T; setPhase('intro');
+  if (A.ctx) sfx('draw', board.position);
+}
+function updFlow(dt) {
+  if (S.phase === 'intro' && S.t > 1.3) setPhase('play');
+  if (S.phase === 'play' && BD.slots.length && BD.slots.every(s => s.solved) && !PCS.some(p => p.state === 'win')) {
+    setPhase('solved'); BD.wave = 0; const secs = Math.round(T - S.start), mm = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+    drawTitle(`NO. ${ROMAN(S.level + 1)} · SOLVED`, 'Checkmate.', `${mm} · ${S.misses ? S.misses + (S.misses === 1 ? ' MISS' : ' MISSES') : 'NO MISSES'}`);
+    sfx('solved'); for (const c of BD.cells) later(.15 + (c.r + c.c) * .07, () => burst(c.pos.clone().applyMatrix4(board.matrix), 5, [1, .85, .55], .22, 1.1, .006));
+  }
+  if (S.phase === 'solved' && S.t > 4.4) { setPhase('outro'); S.boardOn = false; title.want = 0; }
+  if (S.phase === 'outro' && S.t > 1.1) startLevel(S.level + 1);
+  // the hint by the tray, while you are learning
+  let hint = '';
+  if (S.running && S.level === 0 && (S.phase === 'play' || S.phase === 'intro') && PCS.some(p => p.sp)) {
+    if (!S.grabbed) hint = SIM ? 'Click a piece to pick it up' : 'Pinch a piece to pick it up';
+    else if (!S.launched) hint = SIM ? 'Drag it onto its word, and let go' : 'Point it at its word, and let go';
+    else if (!S.solvedAny && S.misses) hint = 'Every piece is one word';
+  }
+  if (hint !== hintCard.txt) { if (hintCard.k < .02) { hintCard.txt = hint; if (hint) drawHint(hint); } hintCard.want = 0; } else hintCard.want = hint ? 1 : 0;
+  for (const c of [title, hintCard]) { c.k += (c.want - c.k) * damp(dt, .25); c.m.material.opacity = c.k; c.m.visible = c.k > .005; }
+}
+
+// ═══════════════════════════ PLACEMENT + LOOP ═══════════════════════════
+function placeStage(hp, fwd) { // the tray goes round where you are standing, the grid where you are looking
+  stage.position.set(hp.x, hp.y - CFG.EYE, hp.z); stage.rotation.set(0, Math.atan2(-fwd.x, -fwd.z), 0); stage.updateMatrixWorld(true); stageQi.copy(stage.quaternion).invert();
+  buildEnv(stage.rotation.y);
+}
+const HOME_POSE = [new V(0, 1.2 + CFG.EYE, 0), new V(0, 0, -1)];
+const _env4 = new THREE.Matrix4();
+function loop() {
+  const dt = S.fixedDt || window.__fixedDt || Math.min(clock.getDelta(), .05); T += dt; S.t += dt; SU.uTime.value = T;
+  if (renderer.xr.isPresenting) { const cams = renderer.xr.getCamera().cameras; if (cams.length && cams[0].viewport.z > 0) SU.uView.value.set(cams[0].viewport.z, cams[0].viewport.w); }
+  else { renderer.getDrawingBufferSize(SU.uView.value); poseDeskCamera(dt); }
+  if (S.phase === 'place' && S.t > .6) { camera.getWorldPosition(_v); camera.getWorldDirection(_v2).setY(0); if (_v.y > .3 && _v2.lengthSq() > .01) { placeStage(_v, _v2.normalize()); startLevel(S.level); } }
+  if (S.replace) { S.replace = false; camera.getWorldPosition(_v); camera.getWorldDirection(_v2).setY(0); if (_v2.lengthSq() > .01) placeStage(_v, _v2.normalize()); }
+  SU.uEnv.value.setFromMatrix4(_env4.makeRotationY(-stage.rotation.y + Math.sin(T * .07) * .12)); // the studio drifts a little, so metal never sits still
+  updHands(dt); updPlay(dt); updPieces(dt); updFlow(dt); updBoard(dt); updHomes(dt); updSparks(dt); updateListener(); if (LAB !== null) updLab(dt);
+  dimMat.uniforms.uA.value += ((S.xr && S.running ? CFG.DIM : 0) - dimMat.uniforms.uA.value) * damp(dt, .6);
+  if (A.ctx) A.amb.gain.setTargetAtTime(S.running ? .05 : .025, A.ctx.currentTime, .8);
+  camera.getWorldPosition(dimSphere.position);
+  sortPass();
+  renderer.render(scene, camera);
+}
+function poseDeskCamera(dt) {
+  if (LAB !== null) return;
+  if (S.phase === 'poster') { const a = Math.sin(T * .08) * .22; toWorld(camera.position.set(.2 + Math.sin(a) * .3, .2 + Math.sin(T * .06) * .02, .42 - Math.abs(Math.sin(a)) * .08)); camera.lookAt(toWorld(_v.set(-.19 + Math.sin(a) * .08, .2, -.72))); }
+  else { camera.position.copy(toWorld(_v.set(0, CFG.EYE + .02, .1))); camera.lookAt(toWorld(_v.set(0, .25, -.62))); }
+  camera.updateMatrixWorld();
+}
+
+// ═══════════════════════════ SESSION ═══════════════════════════
+function begin(xr) {
+  $('ov').classList.add('hide'); S.running = true; S.xr = xr; backdrop.visible = !xr; S.grabbed = S.launched = 0; S.solvedAny = false;
+  S.level = SAVE.get().level || 0;
+  if (xr) { clearLevel(); S.boardOn = false; title.want = 0; setPhase('place'); }
+  else { camera.fov = 62; camera.updateProjectionMatrix(); placeStage(...HOME_POSE); startLevel(S.level); }
+}
+function end() {
+  S.running = false; S.xr = false; backdrop.visible = true; placeStage(...HOME_POSE); posterScene(); $('ov').classList.remove('hide'); showMenu();
+  camera.fov = 38; camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight);
+}
+function posterScene() { S.level = SAVE.get().level || 0; startLevel(S.level); setPhase('poster'); S.boardOn = true; title.want = 1; }
+function showMenu() { const lv = SAVE.get().level || 0; $('go').textContent = lv ? `CONTINUE · NO. ${ROMAN(lv + 1)}` : 'BEGIN'; $('restart').classList.toggle('hide', !lv); }
+$('restart').onclick = () => { SAVE.set({ level: 0 }); posterScene(); showMenu(); };
+$('go').onclick = async () => {
+  audioInit(); if (SIM) return begin(false);
+  if (!navigator.xr) { $('msg').textContent = 'Open this page in the browser of your Meta Quest. Or add ?sim to the address to play at a desk.'; return; }
+  try {
+    const mode = EMU && !(await navigator.xr.isSessionSupported('immersive-ar')) ? 'immersive-vr' : 'immersive-ar'; // the emulator may only do VR; the headset does AR
+    const s = await navigator.xr.requestSession(mode, { requiredFeatures: ['local-floor'], optionalFeatures: ['hand-tracking'] });
+    s.addEventListener('end', end); await renderer.xr.setSession(s); begin(true);
+    const rs = renderer.xr.getReferenceSpace(); if (rs && rs.addEventListener) rs.addEventListener('reset', () => { S.replace = true; }); // you recentred: bring the table to you
+  } catch (e) { $('msg').textContent = 'Could not start · ' + e.message; }
+};
+
+// ═══════════════════════════ SIM: ?sim puts a hand on the mouse ═══════════════════════════
+// mouse = your hand over the tray · hold the button to pinch · drag up onto a word and let go
+const simRay = new THREE.Raycaster(), mouse = new THREE.Vector2(9, 9);
+function simHand(h, dt, rig) {
+  const s = h.sim; simRay.setFromCamera(mouse, camera); const o = toStage(_v.copy(simRay.ray.origin)), d = _v2.copy(simRay.ray.direction).transformDirection(_m.copy(stage.matrixWorld).invert());
+  h.aimO.copy(o); h.aimD.copy(d);
+  // holding, your hand waits low and ready to throw while the mouse ray aims; otherwise it hovers over the tray under the mouse
+  s.away = false; if (h.held) s.p.set(clamp(-d.x / Math.min(d.z, -.2), -1, 1) * .22, .17 + clamp(d.y + .4, 0, .4) * .15, -.27); else { const t = (.045 - o.y) / d.y; s.away = !(t > 0 && t < .9); s.p.copy(o).addScaledVector(d, t > 0 ? Math.min(t, .75) : .42); }
+  for (let f = 0; f < 5; f++) for (let j = 0; j < 4; j++) h.a[f][j] += ((s.pinch ? POSE.pinch : POSE.open)[f][j] - h.a[f][j]) * damp(dt, .05);
+  relFromAngles(rig, h.a, h.rel); h.Q[0].setFromAxisAngle(YA, Math.atan2(-s.p.x, -s.p.z)).multiply(_q.setFromAxisAngle(XA, -.5));
+  h.P[0].set(0, 0, 0); fk(rig, h.rel, h.P, h.Q); _v3.addVectors(h.P[4], h.P[9]).multiplyScalar(.5); // where the pinch is, relative to the wrist
+  h.P[0].copy(s.p).sub(_v3); fk(rig, h.rel, h.P, h.Q); h.pin.copy(s.p); h.kind = 'sim';
+}
+if (SIM) {
+  addEventListener('mousemove', e => { mouse.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); });
+  addEventListener('mousedown', e => { if (e.target === renderer.domElement) HANDS[0].sim.pinch = true; }); addEventListener('mouseup', () => { HANDS[0].sim.pinch = false; });
+}
+
+// ═══════════════════════════ LAB: ?lab shows every piece, ?lab=crown just one (drag to orbit) ═══════════════════════════
+const LABS = { list: [], yaw: .4, pitch: .25, dist: .5, drag: null, target: new V() };
+function setupLab() {
+  $('ov').classList.add('hide'); placeStage(...HOME_POSE); tray.mesh.visible = false; for (const m of stage.children) if (m.geometry && m.geometry.type === 'TubeGeometry') m.visible = false;
+  const names = LAB === '' || LAB === 'all' ? Object.keys(PIECES) : LAB.split(','), cols = Math.ceil(Math.sqrt(names.length)), sp = .085;
+  names.forEach((n, i) => whenCarved(n, msg => { const s = splatMesh(msg); SPL.push(s); s.mesh.scale.setScalar(CFG.PIECE); s.mesh.position.set((i % cols - (cols - 1) / 2) * sp, 0, (Math.floor(i / cols) - (Math.ceil(names.length / cols) - 1) / 2) * sp); stage.add(s.mesh); LABS.list.push(s); }));
+  LABS.dist = names.length > 4 ? .62 : names.length > 1 ? .3 : .2; LABS.target.set(0, names.length > 4 ? 0 : .035, 0); LABS.pitch = names.length > 4 ? .25 : .12; camera.fov = 40; camera.updateProjectionMatrix();
+  renderer.domElement.addEventListener('pointerdown', e => { LABS.drag = [e.clientX, e.clientY]; }); addEventListener('pointerup', () => { LABS.drag = null; });
+  addEventListener('pointermove', e => { if (!LABS.drag) return; LABS.yaw -= (e.clientX - LABS.drag[0]) * .006; LABS.pitch = clamp(LABS.pitch + (e.clientY - LABS.drag[1]) * .004, -.3, 1.4); LABS.drag = [e.clientX, e.clientY]; });
+  addEventListener('wheel', e => { LABS.dist = clamp(LABS.dist * Math.exp(e.deltaY * .001), .08, 2); });
+  setPhase('lab');
+}
+function updLab() { const { yaw, pitch, dist, target } = LABS; toWorld(camera.position.set(target.x + Math.sin(yaw) * Math.cos(pitch) * dist, target.y + Math.sin(pitch) * dist, target.z + Math.cos(yaw) * Math.cos(pitch) * dist)); camera.lookAt(toWorld(_v.copy(target))); camera.updateMatrixWorld(); }
+window.__X = { EMU, loop, S, BD, PCS, HANDS, CARVE, SPL, startLevel, levelDef, scene, camera, renderer, stage, board, LABS, THREE, solve: w => { const pc = PCS.find(p => p.word === w.toUpperCase()); if (pc) launch(pc, { slot: BD.slots.find(s => s.word === pc.word), cell: null }); }, miss: w => { const pc = PCS.find(p => p.word === w.toUpperCase()); if (pc) launch(pc, { slot: BD.slots.find(s => s.word !== pc.word && !s.solved), cell: null }); } };
+
+if (SIM) __X.drag = async (x0, y0, x1, y1, release = true) => { // test hook: press on (x0, y0), drag to (x1, y1) in 800x600 screen units, optionally let go
+  const sc = innerWidth / 800, cv = renderer.domElement, ev = (t, x, y) => (t === 'mousedown' ? cv : window).dispatchEvent(new MouseEvent(t, { clientX: x * sc, clientY: y * sc, bubbles: true })), wait = ms => new Promise(r => setTimeout(r, ms));
+  const step = n => __X.step(n); ev('mouseup', x0, y0); ev('mousemove', x0, y0); step(15); ev('mousedown', x0, y0); step(12);
+  for (let i = 1; i <= 30; i++) { ev('mousemove', x0 + (x1 - x0) * i / 30, y0 + (y1 - y0) * i / 30); step(1); }
+  step(18); const h = HANDS[0], st = { held: h.held && h.held.id, aim: h.aim && h.aim.slot.word }; if (release) { ev('mouseup', x1, y1); step(2); } return st;
+};
+__X.step = (n, dt = 1 / 60) => { S.fixedDt = dt; for (let i = 0; i < n; i++) loop(); S.fixedDt = 0; }; // test hook: run the game n frames at a fixed step (works while the page is in the background)
+
+// ═══════════════════════════ BOOT ═══════════════════════════
+(async () => {
+  if (LAB !== null) { setupLab(); renderer.setAnimationLoop(loop); return; }
+  placeStage(...HOME_POSE); posterScene(); renderer.setAnimationLoop(loop);
+  try { renderer.compile(scene, camera); } catch (e) { } // sparks, arcs and the dimmed room are compiled now, not at your first right answer
+  const loader = new GLTFLoader();
+  try { const [l, r] = await Promise.all([loader.loadAsync('assets/hand-left.glb'), loader.loadAsync('assets/hand-right.glb')]); RIG.left = makeRig(l, 'left'); RIG.right = makeRig(r, 'right'); }
+  catch (e) { $('msg').textContent = 'Could not load the hands · ' + e.message; return; }
+  const first = levelDef(S.level).pieces; await new Promise(res => { let n = 0; first.forEach(id => whenCarved(id, () => { if (++n === first.length) res(); })); });
+  $('go').disabled = false; showMenu();
+  $('msg').innerHTML = SIM ? 'Desktop sim · the mouse is your hand · hold the button to pinch a piece · drag it onto its word and let go' : 'Mixed reality · Meta Quest 3<br>Put the controllers down. This one is played with your bare hands.';
+})();
+</script>
+</body></html>
